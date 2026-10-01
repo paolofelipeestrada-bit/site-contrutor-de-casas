@@ -7,6 +7,7 @@ import { PlanViewer } from "../components/PlanViewer";
 import { Reveal, RevealItem } from "../components/Reveal";
 import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "../components/TechLayers";
 import { useWiringEditor, WiringToolbar } from "../components/WiringEditor";
+import { ZoomPan } from "../components/ZoomPan";
 import { Chip, NumberField } from "../components/ui";
 import { briefFromRooms, exemploInicial, planFromRooms, round2, sobrepostos, type BuilderLot, type BuilderRoom } from "../lib/builder";
 import { ROOM_INFO, ZONE_COLORS, ZONE_LABELS } from "../lib/catalog";
@@ -17,7 +18,22 @@ import { verificacoes } from "../lib/plan/report";
 import type { RoomType, Zone } from "../lib/types";
 
 /** Tipos que aparecem na paleta do modo "construir do zero". */
-const PALETA: RoomType[] = ["sala", "cozinha", "quarto", "suite", "banheiro", "lavabo", "circulacao", "lavanderia", "escritorio", "garagem", "varanda", "area_gourmet", "closet", "jantar"];
+const PALETA: RoomType[] = [
+  "sala",
+  "cozinha",
+  "quarto",
+  "suite",
+  "banheiro",
+  "lavabo",
+  "circulacao",
+  "lavanderia",
+  "escritorio",
+  "garagem",
+  "varanda",
+  "area_gourmet",
+  "closet",
+  "jantar",
+];
 type Aba = "desenho" | "eletrica" | "hidraulica" | "custo";
 const ABAS: [Aba, string][] = [
   ["desenho", "Desenho"],
@@ -90,11 +106,17 @@ export function Builder() {
       const move = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, passo], ArrowDown: [0, -passo] }[e.key];
       if (move) {
         e.preventDefault();
-        change(rooms.map((r) => (r.id === room.id ? { ...r, x: round2(r.x + move[0]), y: round2(r.y + move[1]) } : r)), true);
+        change(
+          rooms.map((r) => (r.id === room.id ? { ...r, x: round2(r.x + move[0]), y: round2(r.y + move[1]) } : r)),
+          true,
+        );
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        change(rooms.filter((r) => r.id !== room.id), true);
+        change(
+          rooms.filter((r) => r.id !== room.id),
+          true,
+        );
         setSel(null);
       }
     };
@@ -135,8 +157,22 @@ export function Builder() {
           {/* Painel de ferramentas */}
           <aside className="panel min-w-0 space-y-6 rounded-2xl p-5">
             <div className="grid grid-cols-2 gap-2.5">
-              <NumberField id="b-largura" label="Terreno: largura" unit="m" min={5} value={lot.largura} onChange={(v) => v >= 5 && setLot({ ...lot, largura: v })} />
-              <NumberField id="b-fundo" label="Terreno: fundo" unit="m" min={8} value={lot.profundidade} onChange={(v) => v >= 8 && setLot({ ...lot, profundidade: v })} />
+              <NumberField
+                id="b-largura"
+                label="Terreno: largura"
+                unit="m"
+                min={5}
+                value={lot.largura}
+                onChange={(v) => v >= 5 && setLot({ ...lot, largura: v })}
+              />
+              <NumberField
+                id="b-fundo"
+                label="Terreno: fundo"
+                unit="m"
+                min={8}
+                value={lot.profundidade}
+                onChange={(v) => v >= 8 && setLot({ ...lot, profundidade: v })}
+              />
             </div>
 
             <div className="space-y-2">
@@ -148,8 +184,15 @@ export function Builder() {
                     ["desenhar", "Desenhar", PencilRuler],
                   ] as const
                 ).map(([t, l, Icon]) => (
-                  <button key={t} type="button" onClick={() => setTool(t)} className={`relative flex items-center justify-center gap-1.5 rounded-md py-1.5 font-medium ${tool === t ? "text-ink" : "text-muted"}`}>
-                    {tool === t && <motion.span layoutId="b-tool" className="absolute inset-0 rounded-md bg-primary" transition={{ duration: DUR.base, ease: EASE }} />}
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTool(t)}
+                    className={`relative flex items-center justify-center gap-1.5 rounded-md py-1.5 font-medium ${tool === t ? "text-ink" : "text-muted"}`}
+                  >
+                    {tool === t && (
+                      <motion.span layoutId="b-tool" className="absolute inset-0 rounded-md bg-primary" transition={{ duration: DUR.base, ease: EASE }} />
+                    )}
                     <Icon className="relative size-4" />
                     <span className="relative">{l}</span>
                   </button>
@@ -176,13 +219,25 @@ export function Builder() {
             </div>
 
             {room && (
-              <motion.div key={room.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: DUR.base, ease: EASE }} className="space-y-3 rounded-xl border border-line bg-card p-3">
+              <motion.div
+                key={room.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: DUR.base, ease: EASE }}
+                className="space-y-3 rounded-xl border border-line bg-card p-3"
+              >
                 <input
                   key={room.id + room.nome}
                   id="b-nome"
                   aria-label="Nome do cômodo"
                   defaultValue={room.nome}
-                  onBlur={(e) => e.target.value.trim() && change(rooms.map((r) => (r.id === room.id ? { ...r, nome: e.target.value.trim() } : r)), true)}
+                  onBlur={(e) =>
+                    e.target.value.trim() &&
+                    change(
+                      rooms.map((r) => (r.id === room.id ? { ...r, nome: e.target.value.trim() } : r)),
+                      true,
+                    )
+                  }
                   className="w-full rounded-md border border-transparent bg-transparent font-display text-lg font-semibold outline-none hover:border-line focus:border-primary"
                 />
                 <label className="flex items-center gap-2 text-xs text-muted">
@@ -190,7 +245,12 @@ export function Builder() {
                   <select
                     id="b-tipo"
                     value={room.tipo}
-                    onChange={(e) => change(rooms.map((r) => (r.id === room.id ? { ...r, tipo: e.target.value as RoomType } : r)), true)}
+                    onChange={(e) =>
+                      change(
+                        rooms.map((r) => (r.id === room.id ? { ...r, tipo: e.target.value as RoomType } : r)),
+                        true,
+                      )
+                    }
                     className="h-8 flex-1 rounded-md border border-line bg-bg px-2 text-sm text-ink"
                   >
                     {PALETA.map((t) => (
@@ -201,8 +261,36 @@ export function Builder() {
                   </select>
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <NumberField id="b-w" label="Largura" unit="m" min={0.8} step={0.1} value={room.w} onChange={(v) => v >= 0.8 && change(rooms.map((r) => (r.id === room.id ? { ...r, w: round2(v) } : r)), true)} />
-                  <NumberField id="b-h" label="Profundidade" unit="m" min={0.8} step={0.1} value={room.h} onChange={(v) => v >= 0.8 && change(rooms.map((r) => (r.id === room.id ? { ...r, h: round2(v) } : r)), true)} />
+                  <NumberField
+                    id="b-w"
+                    label="Largura"
+                    unit="m"
+                    min={0.8}
+                    step={0.1}
+                    value={room.w}
+                    onChange={(v) =>
+                      v >= 0.8 &&
+                      change(
+                        rooms.map((r) => (r.id === room.id ? { ...r, w: round2(v) } : r)),
+                        true,
+                      )
+                    }
+                  />
+                  <NumberField
+                    id="b-h"
+                    label="Profundidade"
+                    unit="m"
+                    min={0.8}
+                    step={0.1}
+                    value={room.h}
+                    onChange={(v) =>
+                      v >= 0.8 &&
+                      change(
+                        rooms.map((r) => (r.id === room.id ? { ...r, h: round2(v) } : r)),
+                        true,
+                      )
+                    }
+                  />
                 </div>
                 <p className="tabular font-mono text-xs text-muted">
                   {fmt(room.w * room.h, 2)} m² · mínimo recomendado {fmt(ROOM_INFO[room.tipo].minWidth, 2)} m de largura · setas movem 10 cm
@@ -210,7 +298,10 @@ export function Builder() {
                 <button
                   type="button"
                   onClick={() => {
-                    change(rooms.filter((r) => r.id !== room.id), true);
+                    change(
+                      rooms.filter((r) => r.id !== room.id),
+                      true,
+                    );
                     setSel(null);
                   }}
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs text-muted hover:border-primary hover:text-primary"
@@ -221,13 +312,29 @@ export function Builder() {
             )}
 
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={undo} disabled={!past.length} className="grid size-9 place-items-center rounded-lg border border-line text-muted disabled:opacity-30" aria-label="Desfazer">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!past.length}
+                className="grid size-9 place-items-center rounded-lg border border-line text-muted disabled:opacity-30"
+                aria-label="Desfazer"
+              >
                 <Undo2 className="size-4" />
               </button>
-              <button type="button" onClick={redo} disabled={!future.length} className="grid size-9 place-items-center rounded-lg border border-line text-muted disabled:opacity-30" aria-label="Refazer">
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!future.length}
+                className="grid size-9 place-items-center rounded-lg border border-line text-muted disabled:opacity-30"
+                aria-label="Refazer"
+              >
                 <Redo2 className="size-4" />
               </button>
-              <button type="button" onClick={() => change(exemploInicial(lot), true)} className="h-9 rounded-lg border border-line px-3 text-sm hover:border-ink/30">
+              <button
+                type="button"
+                onClick={() => change(exemploInicial(lot), true)}
+                className="h-9 rounded-lg border border-line px-3 text-sm hover:border-ink/30"
+              >
                 Exemplo
               </button>
               <button
@@ -282,37 +389,56 @@ export function Builder() {
           <div className="panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-5">
             <nav className="flex gap-1 overflow-x-auto border-b border-line text-sm" aria-label="Camadas do desenho">
               {ABAS.map(([k, l]) => (
-                <button key={k} type="button" onClick={() => setAba(k)} className={`relative shrink-0 px-3 py-2 font-medium ${aba === k ? "text-ink" : "text-muted hover:text-ink"}`}>
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setAba(k)}
+                  className={`relative shrink-0 px-3 py-2 font-medium ${aba === k ? "text-ink" : "text-muted hover:text-ink"}`}
+                >
                   {l}
-                  {aba === k && <motion.span layoutId="b-aba" className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" transition={{ duration: DUR.base, ease: EASE }} />}
+                  {aba === k && (
+                    <motion.span layoutId="b-aba" className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" transition={{ duration: DUR.base, ease: EASE }} />
+                  )}
                 </button>
               ))}
             </nav>
             <div className="relative overflow-hidden rounded-xl border border-line bg-[#121a18]">
               <div className="relative aspect-[4/5] w-full sm:aspect-[5/6] lg:aspect-[4/4.3]">
                 <div className="absolute inset-0 p-2">
-                  {aba === "desenho" ? (
-                    <BuilderCanvas lot={lot} rooms={rooms} selectedId={sel} tool={tool} overlapping={overlap} onSelect={setSel} onCreate={criar} onChange={(r) => change(r)} onCommit={commit} />
-                  ) : plan ? (
-                    <PlanViewer
-                      plan={plan}
-                      brief={brief}
-                      selectedId={null}
-                      onSelect={() => {}}
-                      editMode={false}
-                      animate={false}
-                      layer={aba === "custo" ? "arquitetura" : aba}
-                      overlay={
-                        aba === "eletrica" && eletrica
-                          ? (fy, toMeters) => <ElectricalOverlay e={eletrica} fy={fy} edit={editFiacao ? wiring.props(toMeters) : undefined} />
-                          : aba === "hidraulica" && hidraulica
-                            ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
-                            : undefined
-                      }
-                    />
-                  ) : (
-                    <p className="grid h-full place-items-center text-sm text-muted">Desenhe ao menos um cômodo.</p>
-                  )}
+                  <ZoomPan>
+                    {aba === "desenho" ? (
+                      <BuilderCanvas
+                        lot={lot}
+                        rooms={rooms}
+                        selectedId={sel}
+                        tool={tool}
+                        overlapping={overlap}
+                        onSelect={setSel}
+                        onCreate={criar}
+                        onChange={(r) => change(r)}
+                        onCommit={commit}
+                      />
+                    ) : plan ? (
+                      <PlanViewer
+                        plan={plan}
+                        brief={brief}
+                        selectedId={null}
+                        onSelect={() => {}}
+                        editMode={false}
+                        animate={false}
+                        layer={aba === "custo" ? "arquitetura" : aba}
+                        overlay={
+                          aba === "eletrica" && eletrica
+                            ? (fy, toMeters) => <ElectricalOverlay e={eletrica} fy={fy} edit={editFiacao ? wiring.props(toMeters) : undefined} />
+                            : aba === "hidraulica" && hidraulica
+                              ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
+                              : undefined
+                        }
+                      />
+                    ) : (
+                      <p className="grid h-full place-items-center text-sm text-muted">Desenhe ao menos um cômodo.</p>
+                    )}
+                  </ZoomPan>
                 </div>
                 {aba === "desenho" && (
                   <p className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-bg/90 px-2.5 py-1 text-[11px] text-ink">

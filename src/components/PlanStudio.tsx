@@ -14,6 +14,7 @@ import { ProjectReport } from "./ProjectReport";
 import { CostPanel } from "./CostPanel";
 import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "./TechLayers";
 import { useWiringEditor, WiringToolbar } from "./WiringEditor";
+import { ZoomPan } from "./ZoomPan";
 
 type Tab = Layer | "custo" | "dados" | "aprendizado";
 
@@ -123,24 +124,26 @@ export function PlanStudio({ studio }: { studio: Studio }) {
             <EmptyState />
           ) : isLayer ? (
             <div className="absolute inset-0 p-2 sm:p-3">
-              <PlanViewer
-                plan={plan}
-                brief={result!.brief}
-                selectedId={studio.selectedId}
-                onSelect={studio.setSelectedId}
-                editMode={studio.editMode}
-                animate={studio.animate && tab === "arquitetura"}
-                onDrag={studio.onDrag}
-                zoom={zoom}
-                layer={tab === "custo" ? "arquitetura" : (tab as Layer)}
-                overlay={
-                  tab === "eletrica" && eletrica
-                    ? (fy, toMeters) => <ElectricalOverlay e={eletrica} fy={fy} edit={editandoFiacao ? wiring.props(toMeters) : undefined} />
-                    : tab === "hidraulica" && hidraulica
-                      ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
-                      : undefined
-                }
-              />
+              <ZoomPan>
+                <PlanViewer
+                  plan={plan}
+                  brief={result!.brief}
+                  selectedId={studio.selectedId}
+                  onSelect={studio.setSelectedId}
+                  editMode={studio.editMode}
+                  animate={studio.animate && tab === "arquitetura"}
+                  onDrag={studio.onDrag}
+                  zoom={zoom}
+                  layer={tab === "custo" ? "arquitetura" : (tab as Layer)}
+                  overlay={
+                    tab === "eletrica" && eletrica
+                      ? (fy, toMeters) => <ElectricalOverlay e={eletrica} fy={fy} edit={editandoFiacao ? wiring.props(toMeters) : undefined} />
+                      : tab === "hidraulica" && hidraulica
+                        ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
+                        : undefined
+                  }
+                />
+              </ZoomPan>
               <div className="absolute right-3 top-3 flex rounded-lg border border-line bg-bg/90 p-0.5 text-[11px] font-semibold">
                 {(["casa", "terreno"] as const).map((z) => (
                   <button

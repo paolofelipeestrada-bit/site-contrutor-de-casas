@@ -30,6 +30,7 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Preços da estimativa de custo (R$/m², materiais, etapas) | `src/lib/plan/cost.ts` (objeto `CUSTOS`) |
 | Modo construir do zero (exemplo inicial, grade) | `src/lib/builder.ts`, `src/sections/Builder.tsx` |
 | Ferramentas do editor de fiação | `src/components/WiringEditor.tsx` |
+| Zoom das pranchetas (limites, passo, atalhos) | `src/components/ZoomPan.tsx` |
 | Logo (símbolo do brand board) | `src/components/Logo.tsx` |
 | Cores e fontes do site (identidade do Figma: Carvão, Papel, Argila, Sálvia, Areia) | `src/index.css` (bloco `@theme`) e a fonte em `index.html` |
 | Nome do site e imagem do topo | `src/config.ts` (`heroImage: "/images/hero.webp"` usa uma imagem de `public/images/`) |
