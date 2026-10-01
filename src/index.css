@@ -1,29 +1,32 @@
 @import "tailwindcss";
 
 /*
- * Identidade visual do CasaAI.
- * Prancheta à noite: fundo grafite, traço claro, um único acento (laranja de obra).
- * Cores técnicas (elétrica / água / esgoto) só aparecem nas camadas de projeto.
- * Para mudar a marca, edite apenas os tokens abaixo.
+ * Identidade visual CasaAI (brand board do Figma, versão escura).
+ * Paleta mineral e doméstica: Carvão (estrutura), Papel (texto), Argila (ação, até 15% da tela),
+ * Sálvia (dados e estados positivos), Areia (apoio), Azul-petróleo (informação secundária).
+ * Tipografia: Manrope (títulos e números), Inter (interface), IBM Plex Mono (cotas e metadados).
+ * Sem gradientes decorativos. Para mudar a marca, edite só os tokens abaixo.
  */
 @theme {
-  --font-display: "Archivo", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  --color-bg: #111214;
-  --color-surface: #16181b;
-  --color-card: #1b1d21;
-  --color-line: rgb(255 255 255 / 0.09);
-  --color-ink: #ecebe7;
-  --color-muted: #9a9993;
-  --color-primary: #e07a3f;
-  --color-primary-2: #f0a073;
-  --color-ok: #8fb573;
-  --color-warn: #d6a647;
-  --color-power: #e6b83d;
-  --color-water: #5ba4d4;
-  --color-sewer: #b98a63;
+  --color-bg: #17211F; /* Carvão */
+  --color-surface: #1C2724;
+  --color-card: #22302C;
+  --color-line: rgb(244 241 234 / 0.1);
+  --color-ink: #F4F1EA; /* Papel */
+  --color-muted: #9EA9A5;
+  --color-primary: #C9573F; /* Argila */
+  --color-primary-2: #D9715B;
+  --color-ok: #A9B7A5; /* Sálvia */
+  --color-sand: #DDD0BC; /* Areia */
+  --color-petrol: #46656B; /* Azul-petróleo */
+  --color-warn: #E0B26B;
+  --color-power: #E2B65A;
+  --color-water: #7FB3C8;
+  --color-sewer: #B98A63;
 
   --animate-dash: dash 1.6s linear infinite;
 
@@ -59,7 +62,7 @@ h3 {
 }
 
 ::selection {
-  background: rgb(224 122 63 / 0.35);
+  background: rgb(201 87 63 / 0.35);
 }
 
 :focus-visible {

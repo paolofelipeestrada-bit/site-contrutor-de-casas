@@ -21,7 +21,7 @@ interface Props {
   /** camada técnica ativa: esconde móveis e clareia a arquitetura */
   layer?: Layer;
   /** desenho extra (elétrica, hidráulica) em metros, por cima da planta */
-  overlay?: (fy: (y: number) => number) => ReactNode;
+  overlay?: (fy: (y: number) => number, toMeters: (e: { clientX: number; clientY: number }) => { x: number; y: number }) => ReactNode;
   /** miniatura: sem cotas, rótulos, móveis nem interação */
   thumbnail?: boolean;
 }
@@ -30,7 +30,7 @@ export type Layer = "arquitetura" | "eletrica" | "hidraulica";
 
 const fmt = (v: number, d = 2) => v.toFixed(d).replace(".", ",");
 const WALL = 0.14;
-const BG = "#141518";
+const BG = "#121a18";
 
 export function PlanViewer({
   plan,
@@ -64,7 +64,7 @@ export function PlanViewer({
     [plan, brief.carro, showFurniture],
   );
 
-  const toMeters = (e: React.PointerEvent) => {
+  const toMeters = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef.current!;
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
@@ -98,8 +98,8 @@ export function PlanViewer({
           <line x1="0" y1="0" x2="0" y2="0.5" stroke="rgba(255,255,255,0.05)" strokeWidth="0.08" />
         </pattern>
         <linearGradient id="street" x1="0" x2="1">
-          <stop offset="0" stopColor="#1b1d21" />
-          <stop offset="1" stopColor="#1b1d21" />
+          <stop offset="0" stopColor="#22302C" />
+          <stop offset="1" stopColor="#22302C" />
         </linearGradient>
       </defs>
 
@@ -112,7 +112,7 @@ export function PlanViewer({
         width={lot.width}
         height={lot.depth}
         fill="url(#hatch)"
-        stroke="rgba(236,235,231,0.25)"
+        stroke="rgba(244,241,234,0.25)"
         strokeWidth={0.06}
         strokeDasharray="0.4 0.25"
         initial={animate ? { opacity: 0 } : false}
@@ -125,26 +125,26 @@ export function PlanViewer({
         x2={lot.width + pad}
         y1={lot.depth + 1.05}
         y2={lot.depth + 1.05}
-        stroke="rgba(236,235,231,0.25)"
+        stroke="rgba(244,241,234,0.25)"
         strokeWidth={0.06}
         strokeDasharray="0.6 0.5"
         className="animate-dash"
         style={{ strokeDashoffset: 0 }}
       />
-      <text x={lot.width / 2} y={lot.depth + 1.5} textAnchor="middle" fontSize={0.34} fill="#8a8983" letterSpacing={0.25} fontFamily="var(--font-mono)">
+      <text x={lot.width / 2} y={lot.depth + 1.5} textAnchor="middle" fontSize={0.34} fill="#8E9A96" letterSpacing={0.25} fontFamily="var(--font-mono)">
         RUA · FRENTE DO TERRENO
       </text>
-      <DimH x1={0} x2={lot.width} y={-0.9} label={`${fmt(lot.width)} m`} color="#8a8983" />
-      <DimV y1={0} y2={lot.depth} x={lot.width + 0.9} label={`${fmt(lot.depth)} m`} color="#8a8983" />
+      <DimH x1={0} x2={lot.width} y={-0.9} label={`${fmt(lot.width)} m`} color="#8E9A96" />
+      <DimV y1={0} y2={lot.depth} x={lot.width + 0.9} label={`${fmt(lot.depth)} m`} color="#8E9A96" />
       {plan.setbacks.front > 0 && (
-        <text x={fp.x + fp.w / 2} y={fy(plan.setbacks.front / 2) + 0.12} textAnchor="middle" fontSize={0.3} fill="#7d7c76" fontFamily="var(--font-mono)">
+        <text x={fp.x + fp.w / 2} y={fy(plan.setbacks.front / 2) + 0.12} textAnchor="middle" fontSize={0.3} fill="#7F8B87" fontFamily="var(--font-mono)">
           recuo frontal {fmt(plan.setbacks.front, 1)} m
         </text>
       )}
 
       {/* Projeção da casa */}
-      <DimH x1={fp.x} x2={fp.x + fp.w} y={fy(fp.y + fp.h) - 0.45} label={`${fmt(fp.w)} m`} color="#e07a3f" />
-      <DimV y1={fy(fp.y + fp.h)} y2={fy(fp.y)} x={fp.x - 0.5} label={`${fmt(fp.h)} m`} color="#e07a3f" />
+      <DimH x1={fp.x} x2={fp.x + fp.w} y={fy(fp.y + fp.h) - 0.45} label={`${fmt(fp.w)} m`} color="#C9573F" />
+      <DimV y1={fy(fp.y + fp.h)} y2={fy(fp.y)} x={fp.x - 0.5} label={`${fmt(fp.h)} m`} color="#C9573F" />
       </>
       )}
 
@@ -196,7 +196,7 @@ export function PlanViewer({
           width={r.w}
           height={r.h}
           fill="none"
-          stroke={r.zone === "outdoor" ? "rgba(143,181,115,0.7)" : "#ecebe7"}
+          stroke={r.zone === "outdoor" ? "rgba(169,183,165,0.7)" : "#F4F1EA"}
           strokeWidth={r.zone === "outdoor" ? 0.05 : WALL * 0.7}
           strokeDasharray={r.zone === "outdoor" ? "0.25 0.15" : undefined}
           strokeLinejoin="miter"
@@ -212,7 +212,7 @@ export function PlanViewer({
         width={fp.w}
         height={fp.h}
         fill="none"
-        stroke="#ecebe7"
+        stroke="#F4F1EA"
         strokeWidth={WALL * 1.4}
         initial={animate ? { pathLength: 0 } : false}
         animate={{ pathLength: 1 }}
@@ -240,7 +240,7 @@ export function PlanViewer({
         ))}
 
       {/* Camada técnica */}
-      {overlay?.(fy)}
+      {overlay?.(fy, toMeters)}
 
       {/* Seleção */}
       {selectedId &&
@@ -255,7 +255,7 @@ export function PlanViewer({
               height={r.h - 0.12}
               rx={0.08}
               fill="none"
-              stroke="#e07a3f"
+              stroke="#C9573F"
               strokeWidth={0.09}
               
               initial={{ opacity: 0 }}
@@ -275,8 +275,28 @@ export function PlanViewer({
         const mid = h.axis === "x" ? { x: h.pos, y: fy((h.from + h.to) / 2) } : { x: (h.from + h.to) / 2, y: fy(h.pos) };
         return (
           <g key={h.id}>
-            <line {...line} stroke={active ? "#e07a3f" : "rgba(224,122,63,0.4)"} strokeWidth={active ? 0.12 : 0.06} strokeDasharray={active ? undefined : "0.2 0.15"} pointerEvents="none" />
-            <circle cx={mid.x} cy={mid.y} r={active ? 0.24 : 0.17} fill="#e07a3f" stroke={BG} strokeWidth={0.05} pointerEvents="none" />
+            <line {...line} stroke={active ? "#C9573F" : "rgba(201,87,63,0.4)"} strokeWidth={active ? 0.12 : 0.06} strokeDasharray={active ? undefined : "0.2 0.15"} pointerEvents="none" />
+            {dragging === h.id && (
+              // medidas ao vivo dos dois lados da parede enquanto arrasta
+              <g pointerEvents="none" fontFamily="var(--font-mono)" fontSize={0.3} fontWeight={600}>
+                {[
+                  { v: h.pos - h.lo, d: -1 },
+                  { v: h.hi - h.pos, d: 1 },
+                ].map(({ v, d }) => {
+                  const tx = h.axis === "x" ? mid.x + d * 0.75 : mid.x;
+                  const ty = h.axis === "x" ? mid.y : mid.y - d * 0.55;
+                  return (
+                    <g key={d}>
+                      <rect x={tx - 0.62} y={ty - 0.24} width={1.24} height={0.42} rx={0.08} fill="#C9573F" />
+                      <text x={tx} y={ty + 0.07} textAnchor="middle" fill="#F4F1EA">
+                        {fmt(v)} m
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+            <circle cx={mid.x} cy={mid.y} r={active ? 0.24 : 0.17} fill="#C9573F" stroke={BG} strokeWidth={0.05} pointerEvents="none" />
             <line
               {...line}
               stroke="transparent"
@@ -311,7 +331,7 @@ export function PlanViewer({
 function RoomLabel({ r, fy, delay, animate, selected, muted }: { r: PlacedRoom; fy: (y: number) => number; delay: number; animate: boolean; selected: boolean; muted?: boolean }) {
   if (muted) {
     return (
-      <text x={r.x + r.w / 2} y={fy(r.y + r.h) + 0.42} textAnchor="middle" fontSize={0.24} fill="#8a8983" fontFamily="var(--font-mono)" pointerEvents="none">
+      <text x={r.x + r.w / 2} y={fy(r.y + r.h) + 0.42} textAnchor="middle" fontSize={0.24} fill="#8E9A96" fontFamily="var(--font-mono)" pointerEvents="none">
         {r.tipo === "circulacao" ? "" : r.nome.toUpperCase()}
       </text>
     );
@@ -346,7 +366,7 @@ function RoomLabel({ r, fy, delay, animate, selected, muted }: { r: PlacedRoom; 
         {fmt(area, 1)} m²
       </text>
       {!tiny && (
-        <text x={cx} y={cy + fs * 1.85} textAnchor="middle" fontSize={fs * 0.66} fill="#8a8983" fontFamily="var(--font-mono)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.06}>
+        <text x={cx} y={cy + fs * 1.85} textAnchor="middle" fontSize={fs * 0.66} fill="#8E9A96" fontFamily="var(--font-mono)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.06}>
           {fmt(r.w)} × {fmt(r.h)} m
         </text>
       )}
@@ -355,8 +375,8 @@ function RoomLabel({ r, fy, delay, animate, selected, muted }: { r: PlacedRoom; 
 }
 
 function PieceShape({ p, fy }: { p: Piece; fy: (y: number) => number }) {
-  const stroke = "rgba(236,235,231,0.5)";
-  const fill = p.kind !== "line" && p.tone === "strong" ? "rgba(236,235,231,0.08)" : p.kind !== "line" && p.tone === "accent" ? "rgba(236,235,231,0.05)" : "rgba(236,235,231,0.03)";
+  const stroke = "rgba(244,241,234,0.5)";
+  const fill = p.kind !== "line" && p.tone === "strong" ? "rgba(244,241,234,0.08)" : p.kind !== "line" && p.tone === "accent" ? "rgba(244,241,234,0.05)" : "rgba(244,241,234,0.03)";
   if (p.kind === "rect") return <rect x={p.x} y={fy(p.y + p.h)} width={p.w} height={p.h} rx={p.r ?? 0.05} fill={fill} stroke={stroke} strokeWidth={0.025} />;
   if (p.kind === "circle") return <circle cx={p.cx} cy={fy(p.cy)} r={p.r} fill={fill} stroke={stroke} strokeWidth={0.025} />;
   return <line x1={p.x1} y1={fy(p.y1)} x2={p.x2} y2={fy(p.y2)} stroke={stroke} strokeWidth={0.02} />;
@@ -395,7 +415,7 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
     return (
       <g>
         {gap}
-        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#c9c7c0" strokeWidth={0.06} strokeDasharray="0.3 0.15" />
+        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#DDD0BC" strokeWidth={0.06} strokeDasharray="0.3 0.15" />
       </g>
     );
   }
@@ -431,7 +451,7 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
   const leaf = horizontal ? { x: hx, y: hy + dir * len } : { x: hx + dir * len, y: hy };
   const end = { x: o.x2, y: o.y2 };
   const sweep = horizontal ? (dir > 0 ? 0 : 1) : dir > 0 ? 1 : 0;
-  const color = o.kind === "entrance" ? "#e07a3f" : "#ecebe7";
+  const color = o.kind === "entrance" ? "#C9573F" : "#F4F1EA";
   return (
     <g>
       {gap}

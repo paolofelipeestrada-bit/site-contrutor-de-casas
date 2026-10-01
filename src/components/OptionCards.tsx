@@ -31,7 +31,7 @@ export function OptionCards({ studio }: { studio: Studio }) {
                 transition={{ duration: DUR.base, ease: EASE }}
               />
             )}
-            <div className="h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-[#141518] sm:h-32 sm:w-full">
+            <div className="h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-[#121a18] sm:h-32 sm:w-full">
               <PlanViewer plan={p} brief={result.brief} selectedId={null} onSelect={() => {}} editMode={false} animate={false} thumbnail />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -51,7 +51,7 @@ export function OptionCards({ studio }: { studio: Studio }) {
                 onClick={() => studio.escolher(i)}
                 disabled={ativa}
                 className={`mt-auto inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition ${
-                  ativa ? "bg-primary text-bg" : "border border-line text-ink hover:border-primary hover:text-primary"
+                  ativa ? "bg-primary text-ink" : "border border-line text-ink hover:border-primary hover:text-primary"
                 }`}
               >
                 {ativa ? (

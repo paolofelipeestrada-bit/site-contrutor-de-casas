@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { DUR, EASE, EASE_DRAW, STAGGER } from "../lib/motion";
 import type { ProjetoEletrico } from "../lib/plan/electrical";
 import type { ProjetoHidraulico } from "../lib/plan/plumbing";
 import type { Pt } from "../lib/plan/geometry";
 
 /** Cores técnicas (convenção de desenho: elétrica amarela, água azul, esgoto marrom). */
-export const TECH = { power: "#e6b83d", water: "#5ba4d4", sewer: "#b98a63", label: "#ecebe7" };
+export const TECH = { power: "#E2B65A", water: "#7FB3C8", sewer: "#b98a63", label: "#F4F1EA" };
 
 type Fy = (y: number) => number;
 const poly = (pts: Pt[], fy: Fy) => pts.map((p) => `${p.x},${fy(p.y)}`).join(" ");
@@ -20,7 +20,7 @@ const draw = (delay: number) => ({
 const popIn = (delay: number) => ({
   initial: { opacity: 0, scale: 0.3 },
   animate: { opacity: 1, scale: 1 },
-  transition: { delay, duration: 0.3, ease: EASE },
+  transition: { delay, duration: 0.6, ease: EASE },
   style: { transformBox: "fill-box" as const, transformOrigin: "center" },
 });
 
@@ -28,41 +28,100 @@ const fmt = (v: number, d = 0) => v.toLocaleString("pt-BR", { minimumFractionDig
 
 // ─────────────── Desenho sobre a planta ───────────────
 
-export function ElectricalOverlay({ e, fy }: { e: ProjetoEletrico; fy: Fy }) {
+/** Ferramentas do editor de fiação. */
+export type FerramentaEletrica = "mover" | "luz" | "tug" | "tue" | "interruptor" | "apagar";
+
+export interface EdicaoProps {
+  ferramenta: FerramentaEletrica;
+  selecionado: string | null;
+  onPick: (id: string) => void;
+  onMove: (id: string, pt: { x: number; y: number }, fase: "inicio" | "move") => void;
+  onAdd: (pt: { x: number; y: number }) => void;
+  toMeters: (e: { clientX: number; clientY: number }) => { x: number; y: number };
+}
+
+export function ElectricalOverlay({ e, fy, edit }: { e: ProjetoEletrico; fy: Fy; edit?: EdicaoProps }) {
   const c = TECH.power;
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const fade = (delay: number) => ({ initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { delay, duration: DUR.lento, ease: EASE } });
   return (
-    <g pointerEvents="none">
-      {e.trechos.map((t, i) => (
-        <motion.polyline
-          {...draw(i * STAGGER.longo)}
-          key={t.circuito}
-          points={poly(t.pts, fy)}
-          fill="none"
-          stroke={c}
-          strokeWidth={0.035}
-          strokeOpacity={0.6}
-          strokeDasharray={t.tipo === "Tomadas" ? "0.16 0.1" : t.tipo === "Uso específico" ? "0.3 0.08 0.05 0.08" : undefined}
+    <g pointerEvents={edit ? "auto" : "none"}>
+      {edit && (
+        // área de clique para acrescentar pontos
+        <rect
+          x={-50}
+          y={-50}
+          width={200}
+          height={200}
+          fill="transparent"
+          style={{ cursor: edit.ferramenta === "mover" || edit.ferramenta === "apagar" ? "default" : "crosshair" }}
+          onPointerDown={(ev) => {
+            if (edit.ferramenta !== "mover" && edit.ferramenta !== "apagar") edit.onAdd(edit.toMeters(ev));
+          }}
         />
-      ))}
-      {e.comandos.map((k, i) => (
-        <motion.line
-          {...draw(0.6 + i * STAGGER.curto)}
-          key={i}
-          x1={k.a.x}
-          y1={fy(k.a.y)}
-          x2={k.b.x}
-          y2={fy(k.b.y)}
-          stroke={c}
-          strokeWidth={0.02}
-          strokeDasharray="0.06 0.06"
-          strokeOpacity={0.7}
-        />
-      ))}
-      {e.pontos.map((p, i) => (
-        <motion.g key={i} {...popIn(0.3 + (p.circuito - 1 + (p.kind === "quadro" ? 0 : 1)) * STAGGER.longo + (i % 6) * 0.02)}>
-          {simbolo(p, fy, c)}
-        </motion.g>
-      ))}
+      )}
+      <g pointerEvents="none">
+        {e.trechos.map((t, i) =>
+          t.tipo === "Iluminação" ? (
+            <motion.polyline {...draw(i * STAGGER.longo)} key={t.circuito} points={poly(t.pts, fy)} fill="none" stroke={c} strokeWidth={0.035} strokeOpacity={0.6} />
+          ) : (
+            <motion.polyline
+              {...fade(0.6 + i * STAGGER.longo)}
+              key={t.circuito}
+              points={poly(t.pts, fy)}
+              fill="none"
+              stroke={c}
+              strokeWidth={0.035}
+              strokeOpacity={0.6}
+              strokeDasharray={t.tipo === "Tomadas" ? "0.16 0.1" : "0.3 0.08 0.05 0.08"}
+            />
+          ),
+        )}
+        {e.comandos.map((k, i) => (
+          <motion.line
+            {...fade(1 + i * STAGGER.curto)}
+            key={i}
+            x1={k.a.x}
+            y1={fy(k.a.y)}
+            x2={k.b.x}
+            y2={fy(k.b.y)}
+            stroke={c}
+            strokeWidth={0.02}
+            strokeDasharray="0.06 0.06"
+            strokeOpacity={0.7}
+          />
+        ))}
+      </g>
+      {e.pontos.map((p, i) => {
+        const sel = edit?.selecionado === p.id;
+        return (
+          <motion.g
+            key={p.id}
+            {...popIn(0.3 + (p.circuito - 1 + (p.kind === "quadro" ? 0 : 1)) * STAGGER.longo + (i % 6) * 0.02)}
+            style={{ ...popIn(0).style, cursor: edit ? (edit.ferramenta === "apagar" ? "not-allowed" : "grab") : undefined }}
+            onPointerDown={
+              edit
+                ? (ev) => {
+                    ev.stopPropagation();
+                    edit.onPick(p.id);
+                    if (edit.ferramenta === "mover") {
+                      (ev.target as Element).setPointerCapture(ev.pointerId);
+                      setArrastando(p.id);
+                      edit.onMove(p.id, { x: p.x, y: p.y }, "inicio");
+                    }
+                  }
+                : undefined
+            }
+            onPointerMove={edit && arrastando === p.id ? (ev) => edit.onMove(p.id, edit.toMeters(ev), "move") : undefined}
+            onPointerUp={edit ? () => setArrastando(null) : undefined}
+          >
+            {/* alvo de toque maior que o símbolo */}
+            {edit && <circle cx={p.x} cy={fy(p.y)} r={0.32} fill="transparent" />}
+            {sel && <circle cx={p.x} cy={fy(p.y)} r={0.34} fill="none" stroke="#F4F1EA" strokeWidth={0.04} strokeDasharray="0.08 0.06" />}
+            {simbolo(p, fy, c)}
+          </motion.g>
+        );
+      })}
     </g>
   );
 }
@@ -74,7 +133,7 @@ function simbolo(p: ProjetoEletrico["pontos"][number], fy: Fy, c: string) {
     case "luz":
       return (
         <g>
-          <circle cx={x} cy={y} r={0.2} fill="#141518" stroke={c} strokeWidth={0.04} />
+          <circle cx={x} cy={y} r={0.2} fill="#121a18" stroke={c} strokeWidth={0.04} />
           <path d={`M${x - 0.14} ${y - 0.14} L${x + 0.14} ${y + 0.14} M${x + 0.14} ${y - 0.14} L${x - 0.14} ${y + 0.14}`} stroke={c} strokeWidth={0.03} />
           <text x={x + 0.26} y={y - 0.14} fontSize={0.18} fill={c} fontFamily="var(--font-mono)">
             {p.circuito}
@@ -91,7 +150,7 @@ function simbolo(p: ProjetoEletrico["pontos"][number], fy: Fy, c: string) {
         </g>
       );
     case "tug":
-      return <path d={`M${x} ${y - 0.14} L${x + 0.13} ${y + 0.09} L${x - 0.13} ${y + 0.09} Z`} fill="#141518" stroke={c} strokeWidth={0.03} />;
+      return <path d={`M${x} ${y - 0.14} L${x + 0.13} ${y + 0.09} L${x - 0.13} ${y + 0.09} Z`} fill="#121a18" stroke={c} strokeWidth={0.03} />;
     case "tue":
       return (
         <g>
@@ -105,7 +164,7 @@ function simbolo(p: ProjetoEletrico["pontos"][number], fy: Fy, c: string) {
       return (
         <g>
           <rect x={x - 0.3} y={y - 0.13} width={0.6} height={0.26} fill={c} />
-          <text x={x} y={y + 0.07} fontSize={0.17} textAnchor="middle" fill="#141518" fontWeight={700} fontFamily="var(--font-mono)">
+          <text x={x} y={y + 0.07} fontSize={0.17} textAnchor="middle" fill="#121a18" fontWeight={700} fontFamily="var(--font-mono)">
             QD
           </text>
         </g>
@@ -136,7 +195,7 @@ export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
         y={fy(r.y) - 0.6}
         width={1.2}
         height={1.2}
-        fill="#141518"
+        fill="#121a18"
         fillOpacity={0.6}
         stroke={w}
         strokeWidth={0.05}
@@ -153,14 +212,14 @@ export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
         REDE
       </text>
       {h.aparelhos.map((a, i) => (
-        <motion.circle {...popIn(0.5 + i * STAGGER.curto)} key={i} cx={a.x} cy={fy(a.y)} r={0.09} fill={w} stroke="#141518" strokeWidth={0.02} />
+        <motion.circle {...popIn(0.5 + i * STAGGER.curto)} key={i} cx={a.x} cy={fy(a.y)} r={0.09} fill={w} stroke="#121a18" strokeWidth={0.02} />
       ))}
       {h.caixas.map((c, i) =>
         c.tipo === "CS" ? (
-          <motion.circle {...popIn(1.4 + i * STAGGER.base)} key={i} cx={c.x} cy={fy(c.y)} r={0.15} fill="#141518" stroke={s} strokeWidth={0.04} />
+          <motion.circle {...popIn(1.4 + i * STAGGER.base)} key={i} cx={c.x} cy={fy(c.y)} r={0.15} fill="#121a18" stroke={s} strokeWidth={0.04} />
         ) : (
           <motion.g key={i} {...popIn(1.4 + i * STAGGER.base)}>
-            <rect x={c.x - 0.25} y={fy(c.y) - 0.25} width={0.5} height={0.5} fill="#141518" stroke={s} strokeWidth={0.05} />
+            <rect x={c.x - 0.25} y={fy(c.y) - 0.25} width={0.5} height={0.5} fill="#121a18" stroke={s} strokeWidth={0.05} />
             <text x={c.x} y={fy(c.y) + 0.07} fontSize={0.18} textAnchor="middle" fill={s} fontFamily="var(--font-mono)">
               {c.label}
             </text>

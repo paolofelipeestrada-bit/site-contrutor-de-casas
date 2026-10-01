@@ -33,7 +33,7 @@ export function Pipeline() {
         </RevealItem>
       </Reveal>
 
-      <Reveal as="ol" each={0.12} className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+      <Reveal as="ol" each={0.22} className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map(([t, d], i) => (
           <RevealItem as="li" key={t} className="bg-bg p-5">
             <span className="font-mono text-xs text-primary">0{i + 1}</span>
@@ -46,7 +46,7 @@ export function Pipeline() {
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
           <h3 className="font-display text-xl font-semibold">O que é verificado em toda planta</h3>
-          <Reveal as="ul" each={0.06} className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <Reveal as="ul" each={0.12} className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
             {CHECKS.map((c) => (
               <RevealItem as="li" key={c} className="flex gap-2">
                 <span className="text-ok">✓</span>

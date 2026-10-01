@@ -257,7 +257,7 @@ const WINDOW: Partial<Record<RoomType, number>> = {
   banheiro: 0.6, banheiro_suite: 0.6, lavabo: 0.5, lavanderia: 0.8,
 };
 
-function openingsFor(rooms: PlacedRoom[], brief: Brief, issues: string[]): Opening[] {
+export function openingsFor(rooms: PlacedRoom[], brief: Brief, issues: string[]): Opening[] {
   const ops: Opening[] = [];
   const linked = new Set<string>();
   const key = (a: string, b: string) => [a, b].sort().join("|");

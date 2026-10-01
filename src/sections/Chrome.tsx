@@ -1,40 +1,52 @@
-import { SITE } from "../config";
+import { motion } from "framer-motion";
+import { Logo } from "../components/Logo";
+import { EASE } from "../lib/motion";
+
+const LINKS = [
+  ["#como-funciona", "Como funciona"],
+  ["#briefing", "Gerar planta"],
+  ["#construir", "Construir do zero"],
+  ["#fases", "Fases"],
+];
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-bg/90 backdrop-blur" style={{ top: "env(safe-area-inset-top, 0px)" }}>
+    <motion.header
+      initial={{ y: -64, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 1.2, ease: EASE }}
+      className="sticky z-50 border-b border-line bg-bg/90 backdrop-blur"
+      style={{ top: "env(safe-area-inset-top, 0px)" }}
+    >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-        <a href="#inicio" className="flex items-center gap-2.5" aria-label={`${SITE.nome}, início`}>
-          <svg viewBox="0 0 64 64" className="size-8" aria-hidden>
-            <path d="M14 50V26L32 13l18 13v24H14Z" fill="none" stroke="#ecebe7" strokeWidth="4" strokeLinejoin="round" />
-            <path d="M14 36h20v14" fill="none" stroke="#e07a3f" strokeWidth="4" />
-          </svg>
-          <span className="font-display text-xl font-bold tracking-tight">{SITE.nome}</span>
+        <a href="#inicio" aria-label="casaai, início">
+          <Logo size={26} />
         </a>
         <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
-          <a href="#como-funciona" className="hover:text-ink">
-            Como funciona
-          </a>
-          <a href="#briefing" className="hover:text-ink">
-            Criar planta
-          </a>
-          <a href="#fases" className="hover:text-ink">
-            Fases
-          </a>
+          {LINKS.map(([href, label]) => (
+            <a key={href} href={href} className="transition-colors hover:text-ink">
+              {label}
+            </a>
+          ))}
         </nav>
-        <a href="#briefing" className="rounded-lg bg-ink px-3.5 py-2 text-sm font-semibold text-bg hover:bg-white">
-          Criar planta
+        <a href="#briefing" className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:bg-primary-2">
+          Planeje com clareza →
         </a>
       </div>
-    </header>
+    </motion.header>
   );
 }
 
 export function Footer() {
   return (
-    <footer className="mx-auto flex max-w-7xl flex-col justify-between gap-2 border-t border-line px-4 py-8 text-sm text-muted sm:flex-row sm:px-8">
-      <span className="font-display font-bold text-ink">{SITE.nome}</span>
-      <span>Estudo preliminar. Projeto executivo, estrutura e aprovação na prefeitura exigem arquiteto ou engenheiro.</span>
+    <footer className="bg-primary text-ink">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-8">
+        <p className="font-display text-3xl font-medium leading-tight sm:text-4xl">Confiança para planejar. Clareza para decidir.</p>
+        <div className="mt-10 flex flex-col justify-between gap-3 border-t border-ink/25 pt-5 text-sm sm:flex-row">
+          <Logo size={22} />
+          <span className="text-ink/80">Estudo preliminar. Projeto executivo, estrutura e aprovação exigem arquiteto ou engenheiro.</span>
+        </div>
+      </div>
     </footer>
   );
 }

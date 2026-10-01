@@ -16,6 +16,7 @@ import {
   type LearningState,
 } from "../lib/learning/engine";
 import { parseCommand } from "../lib/plan/commands";
+import { EDICAO_VAZIA, type EdicaoEletrica } from "../lib/plan/electrical";
 import { relayout } from "../lib/pipeline";
 import { gerarOpcoes, type Opcao } from "../lib/plan/profiles";
 import type { Brief, LayoutStrategy, Plan } from "../lib/types";
@@ -35,6 +36,17 @@ interface Result {
   texto: string;
 }
 
+/** Tudo o que o "Desfazer" consegue voltar. */
+interface Snapshot {
+  overrides: Record<string, number>;
+  strategyOverride: LayoutStrategy | null;
+  eletrica: EdicaoEletrica;
+  nomes: Record<string, string>;
+}
+
+/** Passo do arraste de paredes (m): 5 cm, como numa trena. */
+export const SNAP = 0.05;
+
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function useStudio() {
@@ -50,6 +62,48 @@ export function useStudio() {
   const [rated, setRated] = useState<"up" | "down" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const dragStart = useRef<Record<string, number> | null>(null);
+  const [eletrica, setEletrica] = useState<EdicaoEletrica>(EDICAO_VAZIA);
+  const [nomes, setNomes] = useState<Record<string, string>>({});
+  const [past, setPast] = useState<Snapshot[]>([]);
+  const [future, setFuture] = useState<Snapshot[]>([]);
+  const snap = (): Snapshot => ({ overrides, strategyOverride, eletrica, nomes });
+  /** Guarda o estado atual antes de uma mudança (para poder desfazer). */
+  const commit = () => {
+    setPast((p) => [...p.slice(-49), snap()]);
+    setFuture([]);
+  };
+  const restore = (x: Snapshot) => {
+    setOverrides(x.overrides);
+    setStrategyOverride(x.strategyOverride);
+    setEletrica(x.eletrica);
+    setNomes(x.nomes);
+    setAnimate(false);
+  };
+  const undo = () => {
+    const prev = past.at(-1);
+    if (!prev) return;
+    setFuture((f) => [snap(), ...f]);
+    setPast((p) => p.slice(0, -1));
+    restore(prev);
+    setMessage("Desfeito.");
+  };
+  const redo = () => {
+    const next = future[0];
+    if (!next) return;
+    setPast((p) => [...p, snap()]);
+    setFuture((f) => f.slice(1));
+    restore(next);
+    setMessage("Refeito.");
+  };
+  /** Começa do zero o histórico e as edições (nova planta). */
+  const clearEdits = () => {
+    setOverrides({});
+    setStrategyOverride(null);
+    setEletrica(EDICAO_VAZIA);
+    setNomes({});
+    setPast([]);
+    setFuture([]);
+  };
 
   useEffect(() => saveLearning(learning), [learning]);
 
@@ -57,11 +111,12 @@ export function useStudio() {
   const plan: Plan | null = useMemo(() => {
     if (!result || !opcao) return null;
     const base = opcao.plans[result.index];
-    if (!strategyOverride && Object.keys(overrides).length === 0) return base;
-    return relayout(result.brief, strategyOverride ?? base.strategy, learning, overrides, opcao.perfil.multiplicadores);
+    const p = !strategyOverride && Object.keys(overrides).length === 0 ? base : relayout(result.brief, strategyOverride ?? base.strategy, learning, overrides, opcao.perfil.multiplicadores);
+    if (Object.keys(nomes).length === 0) return p;
+    return { ...p, rooms: p.rooms.map((r) => (nomes[r.id] ? { ...r, nome: nomes[r.id] } : r)) };
     // o aprendizado só muda a planta quando o usuário gera de novo
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, overrides, strategyOverride]);
+  }, [result, overrides, strategyOverride, nomes]);
 
   const generate = useCallback(async () => {
     setPhase("interpretando");
@@ -78,8 +133,7 @@ export function useStudio() {
     const preferido = opcoes.findIndex((o) => o.perfil.id === preferredProfile(learning));
     await wait(650);
     setPhase("desenhando");
-    setOverrides({});
-    setStrategyOverride(null);
+    clearEdits();
     setAnimate(true);
     setResult({ brief, fonte, aviso, opcoes, escolha: Math.max(0, preferido), index: 0, texto: form.descricao });
     setLearning((l) => recordGeneration(l, brief));
@@ -92,7 +146,7 @@ export function useStudio() {
       if (!result) return;
       const opcoes = gerarOpcoes(brief, learning);
       setResult({ ...result, brief, opcoes, index: 0 });
-      setOverrides({});
+      clearEdits();
       if (!keepStrategy) setStrategyOverride(null);
       setAnimate(true);
     },
@@ -104,8 +158,7 @@ export function useStudio() {
     (i: number) => {
       if (!result) return;
       setResult({ ...result, escolha: i, index: 0 });
-      setOverrides({});
-      setStrategyOverride(null);
+      clearEdits();
       setSelectedId(null);
       setRated(null);
       setAnimate(true);
@@ -120,8 +173,7 @@ export function useStudio() {
     if (!result) return;
     const total = result.opcoes[result.escolha].plans.length;
     setResult({ ...result, index: (result.index + 1) % total });
-    setOverrides({});
-    setStrategyOverride(null);
+    clearEdits();
     setSelectedId(null);
     setRated(null);
     setAnimate(true);
@@ -129,6 +181,8 @@ export function useStudio() {
 
   const mirror = useCallback(() => {
     if (!plan) return;
+    commit();
+    setEletrica(EDICAO_VAZIA); // pontos elétricos dependem do lado das portas
     setStrategyOverride({ ...plan.strategy, mirror: !plan.strategy.mirror });
     setAnimate(true);
   }, [plan]);
@@ -141,6 +195,7 @@ export function useStudio() {
       const info = ROOM_INFO[room.tipo];
       const current = room.w * room.h;
       const next = Math.min(info.maxArea * 1.5, Math.max(info.minArea, area));
+      commit();
       setAnimate(false);
       setOverrides((o) => ({ ...o, [roomId]: next }));
       setLearning((l) => recordAreaEdit(l, room.tipo, current, next));
@@ -153,9 +208,12 @@ export function useStudio() {
     (h: SplitHandle, pos: number, phase: "move" | "end") => {
       if (!plan) return;
       const current = Object.fromEntries(plan.rooms.map((r) => [r.id, r.w * r.h]));
-      if (!dragStart.current) dragStart.current = current;
+      if (!dragStart.current) {
+        dragStart.current = current;
+        commit();
+      }
       setAnimate(false);
-      const next = dragToAreas(h, pos, current);
+      const next = dragToAreas(h, Math.round(pos / SNAP) * SNAP, current);
       delete next["circulacao-1"];
       setOverrides((o) => ({ ...o, ...next }));
       if (phase === "end") {
@@ -246,11 +304,28 @@ export function useStudio() {
   }, []);
 
   const resetEdits = useCallback(() => {
+    commit();
     setOverrides({});
     setStrategyOverride(null);
+    setEletrica(EDICAO_VAZIA);
+    setNomes({});
     setAnimate(true);
-    setMessage("Edições desfeitas.");
-  }, []);
+    setMessage("Planta voltou ao original (dá para desfazer).");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overrides, strategyOverride, eletrica, nomes]);
+
+  /** Renomeia um cômodo ("Quarto 1" → "Quarto da Ana"). */
+  const renameRoom = (id: string, nome: string) => {
+    if (!nome.trim()) return;
+    commit();
+    setNomes((n) => ({ ...n, [id]: nome.trim() }));
+  };
+
+  /** Altera a fiação (mover, acrescentar, apagar, trocar circuito). */
+  const editEletrica = (fn: (e: EdicaoEletrica) => EdicaoEletrica, registrar = true) => {
+    if (registrar) commit();
+    setEletrica((e) => fn(e));
+  };
 
   return {
     form,
@@ -262,6 +337,13 @@ export function useStudio() {
     escolher,
     plan,
     overrides,
+    eletrica,
+    editEletrica,
+    renameRoom,
+    undo,
+    redo,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
     selectedId,
     setSelectedId,
     editMode,

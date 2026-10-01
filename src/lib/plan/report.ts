@@ -32,7 +32,7 @@ export function verificacoes(plan: Plan, brief: Brief): Check[] {
     { ok: semJanela.length === 0, texto: semJanela.length ? `Sem janela para fora: ${semJanela.map((r) => r.nome).join(", ")}` : "Quartos, sala e escritório com janela para fora" },
     {
       ok: respeitaRecuos,
-      texto: `Recuos respeitados: frente ${fmt(sb.front)} m, fundos ${fmt(sb.back)} m, laterais ${fmt(sb.left)} / ${fmt(sb.right)} m`,
+      texto: `${respeitaRecuos ? "Recuos respeitados" : "Fora dos recuos mínimos"}: frente ${fmt(sb.front)} m, fundos ${fmt(sb.back)} m, laterais ${fmt(sb.left)} / ${fmt(sb.right)} m`,
     },
   ];
   const g = plan.rooms.find((r) => r.tipo === "garagem");

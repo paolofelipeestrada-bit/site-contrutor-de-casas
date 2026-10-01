@@ -27,7 +27,11 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Quero mudar… | Arquivo |
 |---|---|
 | Animações (tempos, curvas, ordem do desenho) | `src/lib/motion.ts` |
-| Cores e fontes do site | `src/index.css` (bloco `@theme`) e a fonte em `index.html` |
+| Preços da estimativa de custo (R$/m², materiais, etapas) | `src/lib/plan/cost.ts` (objeto `CUSTOS`) |
+| Modo construir do zero (exemplo inicial, grade) | `src/lib/builder.ts`, `src/sections/Builder.tsx` |
+| Ferramentas do editor de fiação | `src/components/WiringEditor.tsx` |
+| Logo (símbolo do brand board) | `src/components/Logo.tsx` |
+| Cores e fontes do site (identidade do Figma: Carvão, Papel, Argila, Sálvia, Areia) | `src/index.css` (bloco `@theme`) e a fonte em `index.html` |
 | Nome do site e imagem do topo | `src/config.ts` (`heroImage: "/images/hero.webp"` usa uma imagem de `public/images/`) |
 | Textos das seções | `src/sections/*.tsx` (Hero, Pipeline = "Como funciona", Roadmap = "Fases") |
 | Tamanhos-padrão e larguras mínimas dos cômodos | `src/lib/catalog.ts` (`ROOM_INFO`) |

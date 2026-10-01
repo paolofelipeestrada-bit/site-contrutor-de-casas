@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { FlipHorizontal2, Minus, MousePointer2, Pencil, Plus, RotateCcw, Send, Shuffle, ThumbsDown, ThumbsUp, Ruler } from "lucide-react";
-import { useMemo, useState } from "react";
+import { FlipHorizontal2, Minus, MousePointer2, Pencil, Plus, Redo2, RotateCcw, Send, Shuffle, ThumbsDown, ThumbsUp, Ruler, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { ROOM_INFO } from "../lib/catalog";
 import { DUR, EASE, transition } from "../lib/motion";
 import { STRATEGY_LABEL, learnedHints } from "../lib/learning/engine";
@@ -11,14 +11,17 @@ import { GenerationSteps } from "./GenerationSteps";
 import { OptionCards } from "./OptionCards";
 import { PlanViewer, type Layer } from "./PlanViewer";
 import { ProjectReport } from "./ProjectReport";
+import { CostPanel } from "./CostPanel";
 import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "./TechLayers";
+import { useWiringEditor, WiringToolbar } from "./WiringEditor";
 
-type Tab = Layer | "dados" | "aprendizado";
+type Tab = Layer | "custo" | "dados" | "aprendizado";
 
 const TABS: [Tab, string][] = [
   ["arquitetura", "Planta"],
   ["eletrica", "Elétrica"],
   ["hidraulica", "Hidráulica"],
+  ["custo", "Custo"],
   ["dados", "Dados"],
   ["aprendizado", "Aprendizado"],
 ];
@@ -30,9 +33,28 @@ export function PlanStudio({ studio }: { studio: Studio }) {
   const [tab, setTab] = useState<Tab>("arquitetura");
   const [zoom, setZoom] = useState<"casa" | "terreno">("casa");
   const generating = phase === "interpretando" || phase === "estruturando" || phase === "distribuindo";
-  const eletrica = useMemo(() => (plan ? electricalFor(plan) : null), [plan]);
+  const eletrica = useMemo(() => (plan ? electricalFor(plan, studio.eletrica) : null), [plan, studio.eletrica]);
+  const [editandoFiacao, setEditandoFiacao] = useState(false);
+  const wiring = useWiringEditor(plan, studio.editEletrica, studio.setMessage);
+
+  // Ctrl/Cmd+Z desfaz, Ctrl/Cmd+Shift+Z (ou Ctrl+Y) refaz
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey) || (ev.target as HTMLElement)?.tagName === "INPUT" || (ev.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      const k = ev.key.toLowerCase();
+      if (k === "z" && !ev.shiftKey) {
+        ev.preventDefault();
+        studio.undo();
+      } else if ((k === "z" && ev.shiftKey) || k === "y") {
+        ev.preventDefault();
+        studio.redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [studio]);
   const hidraulica = useMemo(() => (plan && result ? plumbingFor(plan, result.brief) : null), [plan, result]);
-  const isLayer = tab === "arquitetura" || tab === "eletrica" || tab === "hidraulica";
+  const isLayer = tab === "arquitetura" || tab === "eletrica" || tab === "hidraulica" || tab === "custo";
 
   return (
     <section id="planta" aria-live="polite" className="panel min-w-0 space-y-5 rounded-2xl p-4 sm:p-6">
@@ -92,7 +114,7 @@ export function PlanStudio({ studio }: { studio: Studio }) {
         </nav>
       )}
 
-      <div className="relative overflow-hidden rounded-xl border border-line bg-[#141518]">
+      <div className="relative overflow-hidden rounded-xl border border-line bg-[#121a18]">
         <div className="bg-grid absolute inset-0" />
         <div className="relative aspect-[4/5] w-full sm:aspect-[5/6] lg:aspect-[4/4.3]">
           {generating ? (
@@ -110,10 +132,10 @@ export function PlanStudio({ studio }: { studio: Studio }) {
                 animate={studio.animate && tab === "arquitetura"}
                 onDrag={studio.onDrag}
                 zoom={zoom}
-                layer={tab as Layer}
+                layer={tab === "custo" ? "arquitetura" : (tab as Layer)}
                 overlay={
                   tab === "eletrica" && eletrica
-                    ? (fy) => <ElectricalOverlay e={eletrica} fy={fy} />
+                    ? (fy, toMeters) => <ElectricalOverlay e={eletrica} fy={fy} edit={editandoFiacao ? wiring.props(toMeters) : undefined} />
                     : tab === "hidraulica" && hidraulica
                       ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
                       : undefined
@@ -160,7 +182,24 @@ export function PlanStudio({ studio }: { studio: Studio }) {
                 <ProjectReport studio={studio} />
               </div>
             )}
-            {tab === "eletrica" && eletrica && <ElectricalPanel e={eletrica} />}
+            {tab === "eletrica" && eletrica && (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditandoFiacao(!editandoFiacao)}
+                    className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${editandoFiacao ? "border-power bg-power text-bg" : "border-line hover:border-ink/30"}`}
+                  >
+                    <Pencil className="size-4" /> {editandoFiacao ? "Editando a fiação" : "Editar fiação"}
+                  </button>
+                  <UndoRedo studio={studio} />
+                  {studio.message && <span className="text-xs text-muted">{studio.message}</span>}
+                </div>
+                {editandoFiacao && <WiringToolbar wiring={wiring} e={eletrica} plan={plan!} edit={studio.editEletrica} />}
+                <ElectricalPanel e={eletrica} />
+              </div>
+            )}
+            {tab === "custo" && eletrica && hidraulica && <CostPanel plan={plan!} e={eletrica} h={hidraulica} />}
             {tab === "hidraulica" && hidraulica && <PlumbingPanel h={hidraulica} />}
           </motion.div>
         )}
@@ -174,8 +213,8 @@ function EmptyState() {
     <div className="grid h-full place-items-center p-6 text-center">
       <div className="max-w-xs">
         <svg viewBox="0 0 120 90" className="mx-auto w-36" aria-hidden>
-          <rect x="10" y="10" width="100" height="70" fill="none" stroke="#55544f" strokeWidth="2" strokeDasharray="5 4" />
-          <path d="M10 45h55M65 10v70M65 55h45" stroke="#55544f" strokeWidth="1.5" strokeDasharray="5 4" />
+          <rect x="10" y="10" width="100" height="70" fill="none" stroke="#4A5753" strokeWidth="2" strokeDasharray="5 4" />
+          <path d="M10 45h55M65 10v70M65 55h45" stroke="#4A5753" strokeWidth="1.5" strokeDasharray="5 4" />
         </svg>
         <p className="mt-4 font-display text-lg font-semibold">Nenhuma planta ainda</p>
         <p className="mt-1 text-sm text-muted">Você vai receber 3 opções calculadas, com nota e verificações, para escolher e editar.</p>
@@ -198,7 +237,7 @@ function Toolbar({ studio }: { studio: Studio }) {
         <button
           type="button"
           onClick={() => setEditMode(!editMode)}
-          className={`${btn} ${editMode ? "border-primary bg-primary text-bg" : "border-line hover:border-white/25"}`}
+          className={`${btn} ${editMode ? "border-primary bg-primary text-ink" : "border-line hover:border-white/25"}`}
         >
           <Pencil className="size-4" /> {editMode ? "Editando" : "Modo editar"}
         </button>
@@ -208,9 +247,10 @@ function Toolbar({ studio }: { studio: Studio }) {
         <button type="button" onClick={studio.mirror} className={`${btn} border-line hover:border-white/25`}>
           <FlipHorizontal2 className="size-4" /> Espelhar
         </button>
+        <UndoRedo studio={studio} />
         {edited && (
           <button type="button" onClick={studio.resetEdits} className={`${btn} border-line hover:border-white/25`}>
-            <RotateCcw className="size-4" /> Desfazer edições
+            <RotateCcw className="size-4" /> Voltar ao original
           </button>
         )}
         <div className="ml-auto flex items-center gap-1.5">
@@ -248,7 +288,7 @@ function Toolbar({ studio }: { studio: Studio }) {
             aria-label="Comando de edição"
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
           />
-          <button type="submit" className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-bg" aria-label="Aplicar comando">
+          <button type="submit" className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-ink" aria-label="Aplicar comando">
             <Send className="size-4" />
           </button>
         </form>
@@ -274,7 +314,16 @@ function Toolbar({ studio }: { studio: Studio }) {
           >
             <div className="min-w-0">
               <p className="eyebrow">{ROOM_INFO[selected.tipo].label}</p>
-              <p className="font-display text-xl font-semibold">{selected.nome}</p>
+              {/* nome editável: clique e digite ("Quarto da Ana") */}
+              <input
+                key={selected.id + selected.nome}
+                id="nome-comodo"
+                aria-label="Nome do cômodo"
+                defaultValue={selected.nome}
+                onBlur={(e) => e.target.value !== selected.nome && studio.renameRoom(selected.id, e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                className="-ml-1 w-full max-w-xs rounded-md border border-transparent bg-transparent px-1 font-display text-xl font-semibold outline-none transition-colors hover:border-line focus:border-primary"
+              />
               <p className="tabular font-mono text-sm">
                 {fmt(selected.w, 2)} × {fmt(selected.h, 2)} m · {fmt(selected.w * selected.h, 2)} m²
               </p>
@@ -392,5 +441,19 @@ function LearningPanel({ studio }: { studio: Studio }) {
         Apagar o aprendizado
       </button>
     </div>
+  );
+}
+
+function UndoRedo({ studio }: { studio: Studio }) {
+  const btn = "grid size-9 place-items-center rounded-lg border border-line text-muted transition-colors hover:text-ink disabled:opacity-30";
+  return (
+    <span className="inline-flex gap-1">
+      <button type="button" onClick={studio.undo} disabled={!studio.canUndo} className={btn} aria-label="Desfazer (Ctrl+Z)" title="Desfazer (Ctrl+Z)">
+        <Undo2 className="size-4" />
+      </button>
+      <button type="button" onClick={studio.redo} disabled={!studio.canRedo} className={btn} aria-label="Refazer (Ctrl+Shift+Z)" title="Refazer (Ctrl+Shift+Z)">
+        <Redo2 className="size-4" />
+      </button>
+    </span>
   );
 }

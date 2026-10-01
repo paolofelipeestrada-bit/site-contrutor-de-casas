@@ -248,3 +248,70 @@ describe("camadas técnicas, opções e relatório", async () => {
     expect(parseCommand("quero a suíte com 16 m²", plan.rooms)).toMatchObject({ kind: "set", area: 16 });
   });
 });
+
+describe("fiação editável e custo", async () => {
+  const { electricalFor, EDICAO_VAZIA } = await import("./plan/electrical");
+  const { plumbingFor } = await import("./plan/plumbing");
+  const { orcamento, CUSTOS } = await import("./plan/cost");
+  const brief = interpretLocally(DEFAULT_FORM, EXEMPLO);
+  const plan = plansFromBrief(brief)[0];
+  const base = electricalFor(plan);
+
+  it("ids estáveis e edições aplicadas (mover, apagar, acrescentar, trocar circuito)", () => {
+    expect(electricalFor(plan).pontos.map((p) => p.id)).toEqual(base.pontos.map((p) => p.id));
+    const tug = base.pontos.find((p) => p.kind === "tug")!;
+    const quarto = plan.rooms.find((r) => r.tipo === "quarto")!;
+    const ed = {
+      ...EDICAO_VAZIA,
+      movidos: { [tug.id]: { x: 1, y: 2 } },
+      removidos: [base.pontos.find((p) => p.kind === "luz")!.id],
+      adicionados: [{ id: "manual-tue-1", kind: "tue" as const, roomId: quarto.id, x: quarto.x + 1, y: quarto.y + 1, label: "Ar/forno" }],
+      circuito: { [tug.id]: "Circuito extra 99" },
+    };
+    const e = electricalFor(plan, ed);
+    expect(e.pontos.find((p) => p.id === tug.id)).toMatchObject({ x: 1, y: 2 });
+    expect(e.pontos.filter((p) => p.kind === "luz").length).toBe(base.pontos.filter((p) => p.kind === "luz").length - 1);
+    const ar = e.pontos.find((p) => p.id === "manual-tue-1")!;
+    expect(ar.va).toBe(1500);
+    expect(e.circuitos.find((c) => c.id === ar.circuito)?.tipo).toBe("Uso específico");
+    expect(e.circuitos.find((c) => c.nome === "Circuito extra 99")?.pontos).toBe(1);
+  });
+
+  it("orçamento: total = área equivalente × R$/m², etapas somam o total, materiais com preço", () => {
+    const o = orcamento(plan, base, plumbingFor(plan, brief), "normal");
+    expect(o.total).toBe(Math.round(o.areaEquivalente * CUSTOS.m2.normal));
+    expect(Math.abs(o.etapas.reduce((s, x) => s + x.valor, 0) - o.total)).toBeLessThan(20);
+    expect(o.eletrica.some((i) => i.item.startsWith("Cabo 4"))).toBe(true);
+    expect(o.hidraulica.every((i) => i.total > 0)).toBe(true);
+    expect(o.areaEquivalente).toBeLessThan(plan.builtArea);
+    expect(orcamento(plan, base, plumbingFor(plan, brief), "alto").total).toBeGreaterThan(o.total);
+  });
+});
+
+describe("construir do zero", async () => {
+  const { planFromRooms, exemploInicial, sobrepostos } = await import("./builder");
+  const { electricalFor } = await import("./plan/electrical");
+  const { plumbingFor } = await import("./plan/plumbing");
+  const { verificacoes } = await import("./plan/report");
+  const lot = { largura: 12, profundidade: 25 };
+  const rooms = exemploInicial(lot);
+
+  it("o exemplo vira uma planta completa, sem sobreposição e com acesso a todos os cômodos", () => {
+    expect(sobrepostos(rooms).size).toBe(0);
+    const plan = planFromRooms(rooms, lot)!;
+    expect(plan.builtArea).toBeCloseTo(rooms.reduce((s, r) => s + r.w * r.h, 0), 1);
+    expect(plan.issues.filter((i) => i.includes("sem porta"))).toEqual([]);
+    expect(plan.openings.some((o) => o.kind === "entrance")).toBe(true);
+    expect(plan.openings.some((o) => o.kind === "garage_door")).toBe(true);
+    expect(electricalFor(plan).circuitos.length).toBeGreaterThan(4);
+    const b = { terreno: { largura: 12, profundidade: 25 } } as never;
+    expect(plumbingFor(plan, { ...(b as object), regras: {} } as never).aparelhos.length).toBeGreaterThan(3);
+    expect(verificacoes(plan, { carro: { comprimento: 4.5, largura: 1.8, vagas: 1 }, casa: { area: 120 }, regras: {} } as never).length).toBeGreaterThan(4);
+  });
+
+  it("detecta sobreposição", () => {
+    const r2 = [...rooms, { ...rooms[0], id: "x", x: rooms[0].x + 1 }];
+    expect(sobrepostos(r2).has("x")).toBe(true);
+    expect(planFromRooms(r2, lot)!.issues.join()).toMatch(/sobrepostos/);
+  });
+});

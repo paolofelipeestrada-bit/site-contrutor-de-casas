@@ -156,7 +156,7 @@ export function BriefForm({ studio }: { studio: Studio }) {
             <div className="grid grid-cols-2 items-end gap-2.5">
               <NumberField id="moradores" label="Moradores" unit="pess." min={1} value={form.avancado.moradores} onChange={(v) => setAv("moradores", Math.max(1, Math.round(v || 1)))} />
               <label htmlFor="acessivel" className="flex h-10 items-center gap-2 text-sm">
-                <input id="acessivel" type="checkbox" checked={form.avancado.acessivel} onChange={(e) => setAv("acessivel", e.target.checked)} className="size-4 accent-[#e07a3f]" />
+                <input id="acessivel" type="checkbox" checked={form.avancado.acessivel} onChange={(e) => setAv("acessivel", e.target.checked)} className="size-4 accent-[#C9573F]" />
                 Acessibilidade
               </label>
             </div>
@@ -169,7 +169,7 @@ export function BriefForm({ studio }: { studio: Studio }) {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-display text-base font-semibold text-bg transition hover:bg-primary-2 disabled:opacity-70"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-primary font-display text-base font-semibold text-ink transition hover:bg-primary-2 disabled:opacity-70"
         >
           {busy && <Loader2 className="size-5 animate-spin" />}
           {busy ? "Calculando…" : "Gerar 3 opções de planta"}
