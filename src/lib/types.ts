@@ -30,6 +30,18 @@ export type Style = (typeof STYLES)[number];
 
 export type VarandaPosicao = "frente" | "fundos" | "lateral";
 
+/** Para que lado fica o norte, olhando a planta com a rua embaixo. */
+export type Norte = "frente" | "fundos" | "esquerda" | "direita";
+
+/** Opções avançadas do briefing (todas opcionais; vazio = regra automática). */
+export interface Regras {
+  recuos?: { frente?: number; fundos?: number; laterais?: number };
+  norte?: Norte;
+  moradores?: number;
+  /** corredores de 1,20 m e portas de 0,90 m */
+  acessivel?: boolean;
+}
+
 /** Saída da etapa de interpretação (IA ou parser local). É o "contrato" do sistema. */
 export interface Brief {
   terreno: { largura: number; profundidade: number };
@@ -44,6 +56,7 @@ export interface Brief {
   };
   carro: { comprimento: number; largura: number; vagas: number } | null;
   observacoes: string[];
+  regras?: Regras;
 }
 
 /** Um cômodo do programa de necessidades, já com área-alvo definida. */

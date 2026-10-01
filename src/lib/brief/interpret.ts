@@ -68,7 +68,7 @@ export async function interpret(form: FormValues, opts: InterpretOptions = {}): 
     const data = await res.json();
     const parsed = BriefSchema.safeParse(data.brief);
     if (!parsed.success) return { brief: local, fonte: "local", aviso: "Resposta da IA fora do formato; usei o interpretador local." };
-    return { brief: sanitizeBrief(parsed.data as Brief, local), fonte: "claude" };
+    return { brief: { ...sanitizeBrief(parsed.data as Brief, local), regras: local.regras }, fonte: "claude" };
   } catch {
     return { brief: local, fonte: "local" };
   }

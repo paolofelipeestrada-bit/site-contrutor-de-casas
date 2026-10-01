@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ZONE_COLORS } from "../lib/catalog";
 import { furnitureFor, type Piece } from "../lib/plan/furniture";
 import type { SplitHandle } from "../lib/layout/slicing";
@@ -17,13 +17,40 @@ interface Props {
   showFurniture?: boolean;
   /** enquadramento: só a casa (padrão) ou o terreno inteiro com a rua */
   zoom?: "casa" | "terreno";
+  /** camada técnica ativa: esconde móveis e clareia a arquitetura */
+  layer?: Layer;
+  /** desenho extra (elétrica, hidráulica) em metros, por cima da planta */
+  overlay?: (fy: (y: number) => number) => ReactNode;
+  /** miniatura: sem cotas, rótulos, móveis nem interação */
+  thumbnail?: boolean;
 }
+
+export type Layer = "arquitetura" | "eletrica" | "hidraulica";
 
 const fmt = (v: number, d = 2) => v.toFixed(d).replace(".", ",");
 const WALL = 0.14;
-const BG = "#0b0d1a";
+const BG = "#141518";
 
-export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animate, onDrag, showFurniture = true, zoom = "casa" }: Props) {
+export function PlanViewer({
+  plan,
+  brief,
+  selectedId,
+  onSelect,
+  editMode,
+  animate,
+  onDrag,
+  showFurniture = true,
+  zoom = "casa",
+  layer = "arquitetura",
+  overlay,
+  thumbnail = false,
+}: Props) {
+  const tecnica = layer !== "arquitetura";
+  showFurniture = showFurniture && !tecnica && !thumbnail;
+  if (thumbnail) {
+    animate = false;
+    editMode = false;
+  }
   const { lot, footprint: fp } = plan;
   const fy = (y: number) => lot.depth - y; // rua embaixo
   const pad = 1.8;
@@ -46,7 +73,7 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
   };
 
   const onlyCorridor = (ids: string[]) => ids.every((id) => id.startsWith("circulacao"));
-  const handles = editMode ? plan.handles.filter((h) => !onlyCorridor(h.before) && !onlyCorridor(h.after)) : [];
+  const handles = editMode && !tecnica ? plan.handles.filter((h) => !onlyCorridor(h.before) && !onlyCorridor(h.after)) : [];
   const d = (i: number) => (animate ? i : 0);
 
   return (
@@ -66,31 +93,25 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
       }}
     >
       <defs>
-        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="0.18" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
         <pattern id="hatch" width="0.5" height="0.5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="0.5" stroke="rgba(255,255,255,0.05)" strokeWidth="0.08" />
         </pattern>
         <linearGradient id="street" x1="0" x2="1">
-          <stop offset="0" stopColor="#151829" />
-          <stop offset="0.5" stopColor="#1b1f36" />
-          <stop offset="1" stopColor="#151829" />
+          <stop offset="0" stopColor="#1b1d21" />
+          <stop offset="1" stopColor="#1b1d21" />
         </linearGradient>
       </defs>
 
       {/* Terreno, recuos e rua */}
+      {!thumbnail && (
+      <>
       <motion.rect
         x={0}
         y={0}
         width={lot.width}
         height={lot.depth}
         fill="url(#hatch)"
-        stroke="rgba(163,230,53,0.45)"
+        stroke="rgba(236,235,231,0.25)"
         strokeWidth={0.06}
         strokeDasharray="0.4 0.25"
         initial={animate ? { opacity: 0 } : false}
@@ -103,26 +124,28 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
         x2={lot.width + pad}
         y1={lot.depth + 1.05}
         y2={lot.depth + 1.05}
-        stroke="rgba(251,191,36,0.55)"
+        stroke="rgba(236,235,231,0.25)"
         strokeWidth={0.06}
         strokeDasharray="0.6 0.5"
         className="animate-dash"
         style={{ strokeDashoffset: 0 }}
       />
-      <text x={lot.width / 2} y={lot.depth + 1.5} textAnchor="middle" fontSize={0.34} fill="#8f94b8" letterSpacing={0.25} fontFamily="var(--font-mono)">
+      <text x={lot.width / 2} y={lot.depth + 1.5} textAnchor="middle" fontSize={0.34} fill="#8a8983" letterSpacing={0.25} fontFamily="var(--font-mono)">
         RUA · FRENTE DO TERRENO
       </text>
-      <DimH x1={0} x2={lot.width} y={-0.9} label={`${fmt(lot.width)} m`} color="#a3e635" />
-      <DimV y1={0} y2={lot.depth} x={lot.width + 0.9} label={`${fmt(lot.depth)} m`} color="#a3e635" />
+      <DimH x1={0} x2={lot.width} y={-0.9} label={`${fmt(lot.width)} m`} color="#8a8983" />
+      <DimV y1={0} y2={lot.depth} x={lot.width + 0.9} label={`${fmt(lot.depth)} m`} color="#8a8983" />
       {plan.setbacks.front > 0 && (
-        <text x={fp.x + fp.w / 2} y={fy(plan.setbacks.front / 2) + 0.12} textAnchor="middle" fontSize={0.3} fill="rgba(163,230,53,0.65)" fontFamily="var(--font-mono)">
+        <text x={fp.x + fp.w / 2} y={fy(plan.setbacks.front / 2) + 0.12} textAnchor="middle" fontSize={0.3} fill="#7d7c76" fontFamily="var(--font-mono)">
           recuo frontal {fmt(plan.setbacks.front, 1)} m
         </text>
       )}
 
       {/* Projeção da casa */}
-      <DimH x1={fp.x} x2={fp.x + fp.w} y={fy(fp.y + fp.h) - 0.45} label={`${fmt(fp.w)} m`} color="#ff9f6b" />
-      <DimV y1={fy(fp.y + fp.h)} y2={fy(fp.y)} x={fp.x - 0.5} label={`${fmt(fp.h)} m`} color="#ff9f6b" />
+      <DimH x1={fp.x} x2={fp.x + fp.w} y={fy(fp.y + fp.h) - 0.45} label={`${fmt(fp.w)} m`} color="#e07a3f" />
+      <DimV y1={fy(fp.y + fp.h)} y2={fy(fp.y)} x={fp.x - 0.5} label={`${fmt(fp.h)} m`} color="#e07a3f" />
+      </>
+      )}
 
       {/* Pisos dos cômodos */}
       {plan.rooms.map((r, i) => {
@@ -137,7 +160,7 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
             height={r.h}
             fill={c.fill}
             initial={animate ? { opacity: 0 } : false}
-            animate={{ opacity: editMode && selectedId && !selected ? 0.45 : 1 }}
+            animate={{ opacity: tecnica ? 0.35 : editMode && selectedId && !selected ? 0.45 : 1 }}
             transition={{ delay: animate ? 0.9 + d(i) * 0.06 : 0, duration: 0.5 }}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -172,7 +195,7 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
           width={r.w}
           height={r.h}
           fill="none"
-          stroke={r.zone === "outdoor" ? "rgba(163,230,53,0.7)" : "#e6e8ff"}
+          stroke={r.zone === "outdoor" ? "rgba(143,181,115,0.7)" : "#ecebe7"}
           strokeWidth={r.zone === "outdoor" ? 0.05 : WALL * 0.7}
           strokeDasharray={r.zone === "outdoor" ? "0.25 0.15" : undefined}
           strokeLinejoin="miter"
@@ -188,13 +211,13 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
         width={fp.w}
         height={fp.h}
         fill="none"
-        stroke="#ffffff"
+        stroke="#ecebe7"
         strokeWidth={WALL * 1.4}
         initial={animate ? { pathLength: 0 } : false}
         animate={{ pathLength: 1 }}
         transition={{ duration: animate ? 1.4 : 0, ease: "easeInOut" }}
         pointerEvents="none"
-        filter="url(#glow)"
+        
       />
 
       {/* Portas, passagens e janelas */}
@@ -210,9 +233,13 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
       </motion.g>
 
       {/* Rótulos */}
-      {plan.rooms.map((r, i) => (
-        <RoomLabel key={`l-${r.id}`} r={r} fy={fy} delay={animate ? 1.2 + d(i) * 0.06 : 0} animate={animate} selected={r.id === selectedId} />
-      ))}
+      {!thumbnail &&
+        plan.rooms.map((r, i) => (
+          <RoomLabel key={`l-${r.id}`} r={r} fy={fy} delay={animate ? 1.2 + d(i) * 0.06 : 0} animate={animate} selected={r.id === selectedId} muted={tecnica} />
+        ))}
+
+      {/* Camada técnica */}
+      {overlay?.(fy)}
 
       {/* Seleção */}
       {selectedId &&
@@ -227,9 +254,9 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
               height={r.h - 0.12}
               rx={0.08}
               fill="none"
-              stroke="#ff7a3d"
+              stroke="#e07a3f"
               strokeWidth={0.09}
-              filter="url(#glow)"
+              
               initial={{ opacity: 0 }}
               animate={{ opacity: [0.6, 1, 0.6] }}
               transition={{ duration: 1.8, repeat: Infinity }}
@@ -247,8 +274,8 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
         const mid = h.axis === "x" ? { x: h.pos, y: fy((h.from + h.to) / 2) } : { x: (h.from + h.to) / 2, y: fy(h.pos) };
         return (
           <g key={h.id}>
-            <line {...line} stroke={active ? "#ff7a3d" : "rgba(255,122,61,0.35)"} strokeWidth={active ? 0.12 : 0.06} strokeDasharray={active ? undefined : "0.2 0.15"} pointerEvents="none" />
-            <circle cx={mid.x} cy={mid.y} r={active ? 0.24 : 0.17} fill="#ff7a3d" stroke={BG} strokeWidth={0.05} pointerEvents="none" />
+            <line {...line} stroke={active ? "#e07a3f" : "rgba(224,122,63,0.4)"} strokeWidth={active ? 0.12 : 0.06} strokeDasharray={active ? undefined : "0.2 0.15"} pointerEvents="none" />
+            <circle cx={mid.x} cy={mid.y} r={active ? 0.24 : 0.17} fill="#e07a3f" stroke={BG} strokeWidth={0.05} pointerEvents="none" />
             <line
               {...line}
               stroke="transparent"
@@ -280,7 +307,14 @@ export function PlanViewer({ plan, brief, selectedId, onSelect, editMode, animat
   );
 }
 
-function RoomLabel({ r, fy, delay, animate, selected }: { r: PlacedRoom; fy: (y: number) => number; delay: number; animate: boolean; selected: boolean }) {
+function RoomLabel({ r, fy, delay, animate, selected, muted }: { r: PlacedRoom; fy: (y: number) => number; delay: number; animate: boolean; selected: boolean; muted?: boolean }) {
+  if (muted) {
+    return (
+      <text x={r.x + r.w / 2} y={fy(r.y + r.h) + 0.42} textAnchor="middle" fontSize={0.24} fill="#8a8983" fontFamily="var(--font-mono)" pointerEvents="none">
+        {r.tipo === "circulacao" ? "" : r.nome.toUpperCase()}
+      </text>
+    );
+  }
   const short = Math.min(r.w, r.h);
   const area = r.w * r.h;
   const c = ZONE_COLORS[r.zone];
@@ -304,14 +338,14 @@ function RoomLabel({ r, fy, delay, animate, selected }: { r: PlacedRoom; fy: (y:
       pointerEvents="none"
       transform={vertical ? `rotate(-90 ${cx} ${cy})` : undefined}
     >
-      <text x={cx} y={cy - (tiny ? 0.05 : 0.18)} textAnchor="middle" fontSize={fs} fontWeight={600} fill={selected ? "#fff" : c.text} fontFamily="var(--font-display)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.08}>
+      <text x={cx} y={cy - (tiny ? 0.05 : 0.18)} textAnchor="middle" fontSize={fs} fontWeight={600} fill={selected ? "#fff" : c.text} fontFamily="var(--font-sans)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.08}>
         {(vertical ? r.h : r.w) < r.nome.length * fs * 0.6 ? r.nome.split(" ")[0] : r.nome}
       </text>
       <text x={cx} y={cy + fs * 0.95} textAnchor="middle" fontSize={fs * 0.82} fill="#ffffff" fontWeight={600} fontFamily="var(--font-mono)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.07}>
         {fmt(area, 1)} m²
       </text>
       {!tiny && (
-        <text x={cx} y={cy + fs * 1.85} textAnchor="middle" fontSize={fs * 0.66} fill="#8f94b8" fontFamily="var(--font-mono)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.06}>
+        <text x={cx} y={cy + fs * 1.85} textAnchor="middle" fontSize={fs * 0.66} fill="#8a8983" fontFamily="var(--font-mono)" style={{ paintOrder: "stroke" }} stroke={BG} strokeWidth={0.06}>
           {fmt(r.w)} × {fmt(r.h)} m
         </text>
       )}
@@ -320,8 +354,8 @@ function RoomLabel({ r, fy, delay, animate, selected }: { r: PlacedRoom; fy: (y:
 }
 
 function PieceShape({ p, fy }: { p: Piece; fy: (y: number) => number }) {
-  const stroke = "rgba(236,238,251,0.55)";
-  const fill = p.kind !== "line" && p.tone === "strong" ? "rgba(236,238,251,0.10)" : p.kind !== "line" && p.tone === "accent" ? "rgba(56,189,248,0.10)" : "rgba(236,238,251,0.04)";
+  const stroke = "rgba(236,235,231,0.5)";
+  const fill = p.kind !== "line" && p.tone === "strong" ? "rgba(236,235,231,0.08)" : p.kind !== "line" && p.tone === "accent" ? "rgba(236,235,231,0.05)" : "rgba(236,235,231,0.03)";
   if (p.kind === "rect") return <rect x={p.x} y={fy(p.y + p.h)} width={p.w} height={p.h} rx={p.r ?? 0.05} fill={fill} stroke={stroke} strokeWidth={0.025} />;
   if (p.kind === "circle") return <circle cx={p.cx} cy={fy(p.cy)} r={p.r} fill={fill} stroke={stroke} strokeWidth={0.025} />;
   return <line x1={p.x1} y1={fy(p.y1)} x2={p.x2} y2={fy(p.y2)} stroke={stroke} strokeWidth={0.02} />;
@@ -347,9 +381,9 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
       <g>
         {gap}
         {pts.map(([a, b, c, d], i) => (
-          <line key={i} x1={a} y1={b} x2={c} y2={d} stroke="#38bdf8" strokeWidth={0.04} />
+          <line key={i} x1={a} y1={b} x2={c} y2={d} stroke="#a9c3d6" strokeWidth={0.04} />
         ))}
-        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#38bdf8" strokeWidth={0.025} opacity={0.7} />
+        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#a9c3d6" strokeWidth={0.025} opacity={0.7} />
       </g>
     );
   }
@@ -360,7 +394,7 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
     return (
       <g>
         {gap}
-        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#fbbf24" strokeWidth={0.06} strokeDasharray="0.3 0.15" />
+        <line x1={o.x1} y1={fy(o.y1)} x2={o.x2} y2={fy(o.y2)} stroke="#c9c7c0" strokeWidth={0.06} strokeDasharray="0.3 0.15" />
       </g>
     );
   }
@@ -372,13 +406,13 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
         {gap}
         {horizontal ? (
           <>
-            <line x1={o.x1} y1={fy(o.y1) - off} x2={o.x1 + half * 1.1} y2={fy(o.y1) - off} stroke="#a3e635" strokeWidth={0.05} />
-            <line x1={o.x2 - half * 1.1} y1={fy(o.y1) + off} x2={o.x2} y2={fy(o.y1) + off} stroke="#a3e635" strokeWidth={0.05} />
+            <line x1={o.x1} y1={fy(o.y1) - off} x2={o.x1 + half * 1.1} y2={fy(o.y1) - off} stroke="#a9c3d6" strokeWidth={0.05} />
+            <line x1={o.x2 - half * 1.1} y1={fy(o.y1) + off} x2={o.x2} y2={fy(o.y1) + off} stroke="#a9c3d6" strokeWidth={0.05} />
           </>
         ) : (
           <>
-            <line x1={o.x1 - off} y1={fy(o.y1)} x2={o.x1 - off} y2={fy(o.y1 + half * 1.1)} stroke="#a3e635" strokeWidth={0.05} />
-            <line x1={o.x1 + off} y1={fy(o.y2 - half * 1.1)} x2={o.x1 + off} y2={fy(o.y2)} stroke="#a3e635" strokeWidth={0.05} />
+            <line x1={o.x1 - off} y1={fy(o.y1)} x2={o.x1 - off} y2={fy(o.y1 + half * 1.1)} stroke="#a9c3d6" strokeWidth={0.05} />
+            <line x1={o.x1 + off} y1={fy(o.y2 - half * 1.1)} x2={o.x1 + off} y2={fy(o.y2)} stroke="#a9c3d6" strokeWidth={0.05} />
           </>
         )}
       </g>
@@ -396,7 +430,7 @@ function OpeningShape({ o, rooms, fy }: { o: Opening; rooms: PlacedRoom[]; fy: (
   const leaf = horizontal ? { x: hx, y: hy + dir * len } : { x: hx + dir * len, y: hy };
   const end = { x: o.x2, y: o.y2 };
   const sweep = horizontal ? (dir > 0 ? 0 : 1) : dir > 0 ? 1 : 0;
-  const color = o.kind === "entrance" ? "#ff7a3d" : "#eceefb";
+  const color = o.kind === "entrance" ? "#e07a3f" : "#ecebe7";
   return (
     <g>
       {gap}

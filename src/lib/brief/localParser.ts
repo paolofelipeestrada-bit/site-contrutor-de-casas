@@ -1,4 +1,4 @@
-import type { Brief, RoomType, Style, VarandaPosicao } from "../types";
+import type { Brief, Regras, RoomType, Style, VarandaPosicao } from "../types";
 import type { FormValues } from "./form";
 
 /**
@@ -215,6 +215,20 @@ export function assembleBrief(form: FormValues, parsed: ParsedText): Brief {
     },
     carro,
     observacoes: obs,
+    regras: regrasDoForm(form),
+  };
+}
+
+/** Opções avançadas do formulário → regras do algoritmo (campos vazios ficam automáticos). */
+export function regrasDoForm(form: FormValues): Regras {
+  const a = form.avancado;
+  if (!a) return {};
+  const num = (v: number | null) => (v === null || !Number.isFinite(v) ? undefined : clamp(v, 0, 15));
+  return {
+    recuos: { frente: num(a.recuoFrente), fundos: num(a.recuoFundos), laterais: num(a.recuoLaterais) },
+    norte: a.norte ?? undefined,
+    moradores: clamp(Math.round(a.moradores || 4), 1, 20),
+    acessivel: a.acessivel,
   };
 }
 

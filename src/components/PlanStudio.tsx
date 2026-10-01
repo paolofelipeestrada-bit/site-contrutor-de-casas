@@ -1,88 +1,101 @@
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Brain,
-  Braces,
-  FlipHorizontal2,
-  LayoutGrid,
-  Minus,
-  MousePointer2,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Send,
-  Shuffle,
-  Sparkles,
-  ThumbsDown,
-  ThumbsUp,
-  TriangleAlert,
-} from "lucide-react";
+import { FlipHorizontal2, Minus, MousePointer2, Pencil, Plus, RotateCcw, Send, Shuffle, ThumbsDown, ThumbsUp, Ruler } from "lucide-react";
 import { useMemo, useState } from "react";
-import { ROOM_INFO, ZONE_COLORS, ZONE_LABELS } from "../lib/catalog";
-import { explainPlan } from "../lib/layout/layout";
+import { ROOM_INFO } from "../lib/catalog";
 import { STRATEGY_LABEL, learnedHints } from "../lib/learning/engine";
-import type { Zone } from "../lib/types";
+import { electricalFor } from "../lib/plan/electrical";
+import { plumbingFor } from "../lib/plan/plumbing";
 import type { Studio } from "../hooks/useStudio";
 import { GenerationSteps } from "./GenerationSteps";
-import { PlanViewer } from "./PlanViewer";
-import { Badge } from "./ui";
+import { OptionCards } from "./OptionCards";
+import { PlanViewer, type Layer } from "./PlanViewer";
+import { ProjectReport } from "./ProjectReport";
+import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "./TechLayers";
 
-type Tab = "planta" | "dados" | "aprendizado";
+type Tab = Layer | "dados" | "aprendizado";
+
+const TABS: [Tab, string][] = [
+  ["arquitetura", "Planta"],
+  ["eletrica", "Elétrica"],
+  ["hidraulica", "Hidráulica"],
+  ["dados", "Dados"],
+  ["aprendizado", "Aprendizado"],
+];
+
+const fmt = (v: number, d = 1) => v.toFixed(d).replace(".", ",");
 
 export function PlanStudio({ studio }: { studio: Studio }) {
-  const { phase, plan, result } = studio;
-  const [tab, setTab] = useState<Tab>("planta");
+  const { phase, plan, result, opcao } = studio;
+  const [tab, setTab] = useState<Tab>("arquitetura");
   const [zoom, setZoom] = useState<"casa" | "terreno">("casa");
   const generating = phase === "interpretando" || phase === "estruturando" || phase === "distribuindo";
+  const eletrica = useMemo(() => (plan ? electricalFor(plan) : null), [plan]);
+  const hidraulica = useMemo(() => (plan && result ? plumbingFor(plan, result.brief) : null), [plan, result]);
+  const isLayer = tab === "arquitetura" || tab === "eletrica" || tab === "hidraulica";
 
   return (
-    <section id="planta" aria-live="polite" className="glass glow-border min-w-0 rounded-3xl p-4 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section id="planta" aria-live="polite" className="panel min-w-0 space-y-5 rounded-2xl p-4 sm:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-display text-2xl font-semibold">{plan ? "Sua planta 2D" : "Sua planta aparece aqui"}</p>
+          <h2 className="font-display text-2xl font-semibold">{plan ? "Sua planta" : "A planta aparece aqui"}</h2>
           <p className="mt-1 text-sm text-muted">
-            {plan
-              ? `Opção ${result!.index + 1} de ${result!.plans.length} · ${STRATEGY_LABEL[plan.strategy.kind]}`
-              : "Preencha o briefing: a IA organiza os ambientes e o algoritmo desenha com medidas reais."}
+            {plan && opcao
+              ? `${opcao.perfil.nome} · ${STRATEGY_LABEL[plan.strategy.kind]} · variação ${result!.index + 1} de ${opcao.plans.length}`
+              : "Preencha o briefing ao lado e clique em Gerar."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {result && <Badge tone={result.fonte === "claude" ? "primary" : "sky"}>{result.fonte === "claude" ? "IA Claude" : "IA local"}</Badge>}
-          {plan && <ScoreBadge score={plan.score} />}
-          <Badge>Planta 2D</Badge>
-        </div>
-      </div>
+        {plan && (
+          <div className="flex items-center gap-3 text-right">
+            <div>
+              <p className="tabular font-mono text-2xl leading-none">{studio.nota}</p>
+              <p className="text-[11px] text-muted">nota /100</p>
+            </div>
+            <span className="rounded-md border border-line px-2 py-1 font-mono text-[11px] text-muted">
+              {result!.fonte === "claude" ? "Leitura: IA Claude" : "Leitura: regras locais"}
+            </span>
+          </div>
+        )}
+      </header>
+
+      {result && !generating && <OptionCards studio={studio} />}
+
+      {plan && (
+        <p className="flex items-start gap-2 rounded-lg border border-line bg-card px-3 py-2 text-sm">
+          <Ruler className="mt-0.5 size-4 shrink-0 text-primary" />
+          <span>
+            <b className="font-semibold">Projeto calculado com regras geométricas.</b>{" "}
+            <span className="text-muted">A IA só interpreta o pedido; medidas, recuos e ligações entre ambientes são verificados automaticamente.</span>{" "}
+            <a href="#verificacoes" className="text-primary underline-offset-2 hover:underline">
+              Ver verificações
+            </a>
+          </span>
+        </p>
+      )}
 
       {result && (
-        <div className="mt-4 flex gap-1 rounded-full border border-line bg-bg/60 p-1 text-xs font-semibold">
-          {(
-            [
-              ["planta", "Planta", LayoutGrid],
-              ["dados", "Dados", Braces],
-              ["aprendizado", "Aprendizado", Brain],
-            ] as const
-          ).map(([k, label, Icon]) => (
+        <nav className="flex gap-1 overflow-x-auto border-b border-line text-sm" aria-label="Camadas do projeto">
+          {TABS.map(([k, label]) => (
             <button
               key={k}
               type="button"
               onClick={() => setTab(k)}
-              className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 transition ${tab === k ? "text-bg" : "text-muted hover:text-ink"}`}
+              aria-current={tab === k}
+              className={`-mb-px shrink-0 border-b-2 px-3 py-2 font-medium transition ${tab === k ? "border-primary text-ink" : "border-transparent text-muted hover:text-ink"}`}
             >
-              {tab === k && <motion.span layoutId="tab" className="absolute inset-0 rounded-full bg-ink" transition={{ type: "spring", bounce: 0.2, duration: 0.5 }} />}
-              <Icon className="relative size-3.5" />
-              <span className="relative">{label}</span>
+              {label}
             </button>
           ))}
-        </div>
+        </nav>
       )}
 
-      <div className="relative mt-4 overflow-hidden rounded-2xl border border-line bg-[#0b0d1a]">
-        <div className="bg-grid absolute inset-0 opacity-70" />
+      <div className="relative overflow-hidden rounded-xl border border-line bg-[#141518]">
+        <div className="bg-grid absolute inset-0" />
         <div className="relative aspect-[4/5] w-full sm:aspect-[5/6] lg:aspect-[4/4.3]">
           {generating ? (
             <GenerationSteps phase={phase} />
           ) : !plan ? (
             <EmptyState />
-          ) : tab === "planta" ? (
+          ) : isLayer ? (
             <div className="absolute inset-0 p-2 sm:p-3">
               <PlanViewer
                 plan={plan}
@@ -90,26 +103,29 @@ export function PlanStudio({ studio }: { studio: Studio }) {
                 selectedId={studio.selectedId}
                 onSelect={studio.setSelectedId}
                 editMode={studio.editMode}
-                animate={studio.animate}
+                animate={studio.animate && tab === "arquitetura"}
                 onDrag={studio.onDrag}
                 zoom={zoom}
+                layer={tab as Layer}
+                overlay={
+                  tab === "eletrica" && eletrica
+                    ? (fy) => <ElectricalOverlay e={eletrica} fy={fy} />
+                    : tab === "hidraulica" && hidraulica
+                      ? (fy) => <PlumbingOverlay h={hidraulica} fy={fy} />
+                      : undefined
+                }
               />
-              <div className="absolute right-3 top-3 flex gap-1 rounded-full border border-line bg-bg/80 p-1 text-[11px] font-semibold backdrop-blur">
+              <div className="absolute right-3 top-3 flex rounded-lg border border-line bg-bg/90 p-0.5 text-[11px] font-semibold">
                 {(["casa", "terreno"] as const).map((z) => (
-                  <button
-                    key={z}
-                    type="button"
-                    onClick={() => setZoom(z)}
-                    className={`rounded-full px-3 py-1 transition ${zoom === z ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}
-                  >
+                  <button key={z} type="button" onClick={() => setZoom(z)} className={`rounded-md px-2.5 py-1 ${zoom === z ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}>
                     {z === "casa" ? "Casa" : "Terreno"}
                   </button>
                 ))}
               </div>
-              {studio.editMode && (
-                <div className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-primary/90 px-3 py-1 text-[11px] font-bold text-bg">
-                  <MousePointer2 className="size-3" /> Arraste as paredes laranja · clique num cômodo
-                </div>
+              {studio.editMode && tab === "arquitetura" && (
+                <p className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-md bg-bg/90 px-2.5 py-1 text-[11px] text-ink">
+                  <MousePointer2 className="size-3 text-primary" /> Arraste as linhas laranja ou clique num cômodo
+                </p>
               )}
             </div>
           ) : tab === "dados" ? (
@@ -120,221 +136,167 @@ export function PlanStudio({ studio }: { studio: Studio }) {
         </div>
       </div>
 
-      {plan && tab === "planta" && !generating && <Toolbar studio={studio} />}
+      {plan && !generating && tab === "arquitetura" && (
+        <>
+          <Toolbar studio={studio} />
+          <ProjectReport studio={studio} />
+        </>
+      )}
+      {plan && !generating && tab === "eletrica" && eletrica && <ElectricalPanel e={eletrica} />}
+      {plan && !generating && tab === "hidraulica" && hidraulica && <PlumbingPanel h={hidraulica} />}
     </section>
   );
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const tone = score >= 75 ? "lime" : score >= 55 ? "sun" : "primary";
-  return <Badge tone={tone}>Nota {score}</Badge>;
-}
-
 function EmptyState() {
   return (
-    <div className="grid h-full place-items-center p-6">
-      <div className="max-w-xs text-center">
-        <motion.div
-          className="mx-auto grid size-20 place-items-center rounded-3xl border-2 border-dashed border-white/15 bg-card"
-          animate={{ rotate: [0, 4, -4, 0], y: [0, -6, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Sparkles className="size-8 text-primary" />
-        </motion.div>
-        <p className="mt-5 font-display text-xl font-semibold">Pronta para ganhar forma</p>
-        <p className="mt-2 text-sm text-muted">Clique em “Gerar projeto 2D”. Você vai ver a IA ler o pedido, montar os dados e o algoritmo desenhar parede por parede.</p>
+    <div className="grid h-full place-items-center p-6 text-center">
+      <div className="max-w-xs">
+        <svg viewBox="0 0 120 90" className="mx-auto w-36" aria-hidden>
+          <rect x="10" y="10" width="100" height="70" fill="none" stroke="#55544f" strokeWidth="2" strokeDasharray="5 4" />
+          <path d="M10 45h55M65 10v70M65 55h45" stroke="#55544f" strokeWidth="1.5" strokeDasharray="5 4" />
+        </svg>
+        <p className="mt-4 font-display text-lg font-semibold">Nenhuma planta ainda</p>
+        <p className="mt-1 text-sm text-muted">Você vai receber 3 opções calculadas, com nota e verificações, para escolher e editar.</p>
       </div>
     </div>
   );
 }
 
 function Toolbar({ studio }: { studio: Studio }) {
-  const { plan, result, editMode, setEditMode, rated, message } = studio;
+  const { plan, editMode, setEditMode, rated, message } = studio;
   const [cmd, setCmd] = useState("");
+  const [areaInput, setAreaInput] = useState("");
   const selected = plan!.rooms.find((r) => r.id === studio.selectedId);
-  const why = useMemo(() => explainPlan(plan!, result!.brief, studio.learning).slice(0, 4), [plan, result, studio.learning]);
   const edited = Object.keys(studio.overrides).length > 0;
+  const btn = "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition";
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <ToolButton active={editMode} onClick={() => setEditMode(!editMode)} icon={Pencil}>
-          {editMode ? "Editando" : "Modo editar"}
-        </ToolButton>
-        <ToolButton onClick={studio.nextOption} icon={Shuffle}>
-          Outra opção
-        </ToolButton>
-        <ToolButton onClick={studio.mirror} icon={FlipHorizontal2}>
-          Espelhar
-        </ToolButton>
+        <button type="button" onClick={() => setEditMode(!editMode)} className={`${btn} ${editMode ? "border-primary bg-primary text-bg" : "border-line hover:border-white/25"}`}>
+          <Pencil className="size-4" /> {editMode ? "Editando" : "Modo editar"}
+        </button>
+        <button type="button" onClick={studio.nextOption} className={`${btn} border-line hover:border-white/25`}>
+          <Shuffle className="size-4" /> Outra variação
+        </button>
+        <button type="button" onClick={studio.mirror} className={`${btn} border-line hover:border-white/25`}>
+          <FlipHorizontal2 className="size-4" /> Espelhar
+        </button>
         {edited && (
-          <ToolButton onClick={studio.resetEdits} icon={RotateCcw}>
-            Desfazer
-          </ToolButton>
+          <button type="button" onClick={studio.resetEdits} className={`${btn} border-line hover:border-white/25`}>
+            <RotateCcw className="size-4" /> Desfazer edições
+          </button>
         )}
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="hidden text-xs text-muted sm:inline">Gostou?</span>
-          <RateButton active={rated === "up"} onClick={() => studio.rate(true)} label="Gostei">
-            <ThumbsUp className="size-4" />
-          </RateButton>
-          <RateButton active={rated === "down"} onClick={() => studio.rate(false)} label="Não gostei">
-            <ThumbsDown className="size-4" />
-          </RateButton>
+          <span className="text-xs text-muted">Gostou?</span>
+          {([true, false] as const).map((up) => (
+            <button
+              key={String(up)}
+              type="button"
+              aria-label={up ? "Gostei" : "Não gostei"}
+              onClick={() => studio.rate(up)}
+              className={`grid size-9 place-items-center rounded-lg border transition ${rated === (up ? "up" : "down") ? "border-primary text-primary" : "border-line text-muted hover:text-ink"}`}
+            >
+              {up ? <ThumbsUp className="size-4" /> : <ThumbsDown className="size-4" />}
+            </button>
+          ))}
         </div>
       </div>
 
-      <AnimatePresence>
-        {editMode && (
-          <motion.form
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (cmd.trim()) {
-                studio.runCommand(cmd);
-                setCmd("");
-              }
-            }}
-            className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-1.5 pl-3"
-          >
-            <Sparkles className="size-4 shrink-0 text-primary" />
-            <input
-              value={cmd}
-              onChange={(e) => setCmd(e.target.value)}
-              placeholder="Ex.: aumentar a suíte em 2 m² · adicionar escritório · espelhar"
-              aria-label="Comando de edição"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
-            />
-            <button type="submit" className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-bg transition hover:bg-primary-2" aria-label="Aplicar comando">
-              <Send className="size-4" />
-            </button>
-          </motion.form>
-        )}
-      </AnimatePresence>
+      {editMode && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (cmd.trim()) {
+              studio.runCommand(cmd);
+              setCmd("");
+            }
+          }}
+          className="flex items-center gap-2 rounded-lg border border-line bg-card p-1.5 pl-3"
+        >
+          <input
+            id="comando"
+            value={cmd}
+            onChange={(e) => setCmd(e.target.value)}
+            placeholder="Ex.: quero a suíte com 16 m² · adicionar escritório · espelhar"
+            aria-label="Comando de edição"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+          />
+          <button type="submit" className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-bg" aria-label="Aplicar comando">
+            <Send className="size-4" />
+          </button>
+        </form>
+      )}
 
       <AnimatePresence mode="wait">
         {message && (
-          <motion.p key={message} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-xl bg-sky/10 px-3 py-2 text-xs text-sky">
+          <motion.p key={message} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-muted">
             {message}
           </motion.p>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            key={selected.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-card/80 p-4"
-          >
-            <span className="size-10 shrink-0 rounded-xl" style={{ background: ZONE_COLORS[selected.zone].fill, border: `2px solid ${ZONE_COLORS[selected.zone].stroke}` }} />
-            <div className="min-w-0">
-              <p className="font-display text-lg font-semibold">{selected.nome}</p>
-              <p className="font-mono text-sm text-muted">
-                {(selected.w * selected.h).toFixed(1).replace(".", ",")} m² · {selected.w.toFixed(2).replace(".", ",")} × {selected.h.toFixed(2).replace(".", ",")} m
-              </p>
-              <p className="text-xs text-muted/80">
-                Alvo {selected.targetArea.toFixed(1).replace(".", ",")} m² · mínimo recomendado {ROOM_INFO[selected.tipo].minWidth.toString().replace(".", ",")} m de largura
-              </p>
-            </div>
-            {selected.tipo !== "circulacao" && (
-              <div className="ml-auto flex items-center gap-2">
-                <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h - 1)} className="grid size-10 place-items-center rounded-xl border border-line hover:border-primary/60 hover:text-primary" aria-label="Diminuir 1 m²">
-                  <Minus className="size-4" />
-                </button>
-                <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h + 1)} className="grid size-10 place-items-center rounded-xl border border-line hover:border-primary/60 hover:text-primary" aria-label="Aumentar 1 m²">
-                  <Plus className="size-4" />
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-line bg-white/[0.02] p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Resumo</p>
-          <p className="mt-1 font-mono text-sm">
-            {plan!.builtArea.toString().replace(".", ",")} m² construídos · {plan!.footprint.w.toFixed(1).replace(".", ",")} × {plan!.footprint.h.toFixed(1).replace(".", ",")} m
-          </p>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-            {(Object.keys(ZONE_LABELS) as Zone[])
-              .filter((z) => plan!.rooms.some((r) => r.zone === z))
-              .map((z) => (
-                <span key={z} className="inline-flex items-center gap-1.5 text-[11px] text-muted">
-                  <span className="size-2.5 rounded-sm" style={{ background: ZONE_COLORS[z].stroke }} />
-                  {ZONE_LABELS[z]}
-                </span>
-              ))}
+      {selected && (
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-card p-4">
+          <div className="min-w-0">
+            <p className="eyebrow">{ROOM_INFO[selected.tipo].label}</p>
+            <p className="font-display text-xl font-semibold">{selected.nome}</p>
+            <p className="tabular font-mono text-sm">
+              {fmt(selected.w, 2)} × {fmt(selected.h, 2)} m · {fmt(selected.w * selected.h, 2)} m²
+            </p>
+            <p className="text-xs text-muted">Largura mínima recomendada: {fmt(ROOM_INFO[selected.tipo].minWidth, 2)} m</p>
           </div>
-        </div>
-        <div className="rounded-2xl border border-line bg-white/[0.02] p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Por que essa nota</p>
-          {why.length === 0 && plan!.issues.length === 0 ? (
-            <p className="mt-1 text-sm text-lime">Tudo dentro das regras que o algoritmo verifica.</p>
-          ) : (
-            <ul className="mt-1 space-y-0.5 text-xs text-muted">
-              {plan!.issues.slice(0, 2).map((i) => (
-                <li key={i} className="flex gap-1.5 text-sun">
-                  <TriangleAlert className="mt-0.5 size-3 shrink-0" /> {i}
-                </li>
-              ))}
-              {why.map((w) => (
-                <li key={w} className="font-mono">
-                  {w}
-                </li>
-              ))}
-            </ul>
+          {selected.tipo !== "circulacao" && (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h - 1)} className={`${btn} border-line`} aria-label="Diminuir 1 m²">
+                <Minus className="size-4" /> 1 m²
+              </button>
+              <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h + 1)} className={`${btn} border-line`} aria-label="Aumentar 1 m²">
+                <Plus className="size-4" /> 1 m²
+              </button>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = Number(areaInput.replace(",", "."));
+                  if (v > 0) studio.setRoomArea(selected.id, v);
+                  setAreaInput("");
+                }}
+                className="flex items-center gap-1"
+              >
+                <label htmlFor="area-comodo" className="sr-only">
+                  Nova área em m²
+                </label>
+                <input
+                  id="area-comodo"
+                  inputMode="decimal"
+                  value={areaInput}
+                  onChange={(e) => setAreaInput(e.target.value)}
+                  placeholder="m²"
+                  className="h-9 w-16 rounded-lg border border-line bg-bg px-2 text-right font-mono text-sm outline-none focus:border-primary"
+                />
+                <button type="submit" className={`${btn} border-line hover:border-primary`}>
+                  Aplicar
+                </button>
+              </form>
+            </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function ToolButton({ children, onClick, icon: Icon, active }: { children: React.ReactNode; onClick: () => void; icon: typeof Pencil; active?: boolean }) {
-  return (
-    <motion.button
-      type="button"
-      whileTap={{ scale: 0.95 }}
-      onClick={onClick}
-      className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition ${
-        active ? "border-primary bg-primary text-bg" : "border-line bg-white/[0.03] text-ink hover:border-white/25"
-      }`}
-    >
-      <Icon className="size-4" />
-      {children}
-    </motion.button>
-  );
-}
-
-function RateButton({ children, onClick, active, label }: { children: React.ReactNode; onClick: () => void; active: boolean; label: string }) {
-  return (
-    <motion.button
-      type="button"
-      aria-label={label}
-      whileTap={{ scale: 0.85, rotate: -8 }}
-      onClick={onClick}
-      className={`grid size-10 place-items-center rounded-full border transition ${active ? "border-lime bg-lime/20 text-lime" : "border-line text-muted hover:text-ink"}`}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
 function DataPanel({ studio }: { studio: Studio }) {
-  const { result } = studio;
-  const json = JSON.stringify(result!.brief, null, 2);
   return (
     <div className="absolute inset-0 overflow-auto p-4">
-      <p className="mb-2 text-xs text-muted">
-        Este é o “contrato” entre a IA e o algoritmo. A IA só <b className="text-ink">entende</b> o pedido; quem desenha, respeitando as medidas, é o nosso sistema.
+      <p className="mb-3 max-w-prose text-sm text-muted">
+        Este JSON é o que a IA entendeu do seu pedido. O algoritmo usa só estes dados para calcular a planta, por isso o resultado pode ser conferido.
       </p>
-      {result!.aviso && <p className="mb-2 text-xs text-sun">{result!.aviso}</p>}
-      <pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-bg/80 p-3 font-mono text-[11px] leading-relaxed text-sky/90">{json}</pre>
+      {studio.result!.aviso && <p className="mb-2 text-xs text-warn">{studio.result!.aviso}</p>}
+      <pre className="whitespace-pre-wrap break-words rounded-lg border border-line bg-bg p-3 font-mono text-[11px] leading-relaxed text-ink/90">
+        {JSON.stringify(studio.result!.brief, null, 2)}
+      </pre>
     </div>
   );
 }
@@ -342,73 +304,49 @@ function DataPanel({ studio }: { studio: Studio }) {
 function LearningPanel({ studio }: { studio: Studio }) {
   const { learning } = studio;
   const hints = learnedHints(learning);
-  const factors = Object.entries(learning.areaFactor) as [keyof typeof ROOM_INFO, { value: number; n: number }][];
   return (
-    <div className="absolute inset-0 overflow-auto p-4">
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Plantas geradas" value={learning.generations} />
-        <Stat label="Ajustes feitos" value={learning.edits} />
-        <Stat label="Avaliações" value={learning.ratings.up + learning.ratings.down} />
-      </div>
-      <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-muted">O que a IA aprendeu com você</p>
-      {hints.length ? (
-        <ul className="mt-2 space-y-1.5">
-          {hints.map((h) => (
-            <motion.li key={h} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex gap-2 rounded-xl bg-grape/10 px-3 py-2 text-sm text-grape">
-              <Brain className="mt-0.5 size-4 shrink-0" /> {h}
-            </motion.li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-muted">Ainda nada. Edite cômodos, arraste paredes e avalie as plantas com 👍/👎 — cada ação ajusta as próximas sugestões.</p>
-      )}
-      {factors.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {factors.map(([tipo, f]) => (
-            <div key={tipo}>
-              <div className="flex justify-between text-xs">
-                <span>{ROOM_INFO[tipo].label}</span>
-                <span className="font-mono text-muted">{f.value >= 1 ? "+" : ""}{Math.round((f.value - 1) * 100)}%</span>
-              </div>
-              <div className="relative mt-1 h-1.5 rounded-full bg-white/5">
-                <span className="absolute left-1/2 top-0 h-full w-px bg-white/30" />
-                <motion.span
-                  className={`absolute top-0 h-full rounded-full ${f.value >= 1 ? "bg-primary" : "bg-sky"}`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(50, Math.abs(f.value - 1) * 62.5)}%`, left: f.value >= 1 ? "50%" : `${50 - Math.min(50, Math.abs(f.value - 1) * 62.5)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {learning.log.length > 0 && (
-        <>
-          <p className="mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Linha do tempo</p>
-          <ul className="mt-2 space-y-1">
-            {learning.log.slice(0, 8).map((e) => (
-              <li key={e.at + e.detail} className="flex items-center gap-2 text-xs text-muted">
-                <span className={`size-1.5 rounded-full ${e.kind === "like" ? "bg-lime" : e.kind === "dislike" ? "bg-pink" : e.kind === "edicao" ? "bg-primary" : "bg-sky"}`} />
-                {e.detail}
+    <div className="absolute inset-0 space-y-5 overflow-auto p-4">
+      <dl className="grid grid-cols-3 gap-3">
+        {(
+          [
+            ["plantas geradas", learning.generations],
+            ["ajustes feitos", learning.edits],
+            ["avaliações", learning.ratings.up + learning.ratings.down],
+          ] as const
+        ).map(([l, v]) => (
+          <div key={l} className="rounded-lg border border-line p-3">
+            <dd className="tabular font-mono text-2xl">{v}</dd>
+            <dt className="text-[11px] text-muted">{l}</dt>
+          </div>
+        ))}
+      </dl>
+      <div>
+        <p className="eyebrow">O que o sistema aprendeu com você</p>
+        {hints.length ? (
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {hints.map((h) => (
+              <li key={h} className="border-l-2 border-primary pl-3">
+                {h}
               </li>
             ))}
           </ul>
-        </>
+        ) : (
+          <p className="mt-2 text-sm text-muted">Nada ainda. Escolha opções, edite cômodos e avalie as plantas: cada ação ajusta as próximas sugestões.</p>
+        )}
+      </div>
+      {learning.log.length > 0 && (
+        <div>
+          <p className="eyebrow">Histórico</p>
+          <ul className="mt-2 space-y-1 font-mono text-xs text-muted">
+            {learning.log.slice(0, 10).map((e) => (
+              <li key={e.at + e.detail}>{e.detail}</li>
+            ))}
+          </ul>
+        </div>
       )}
-      <button type="button" onClick={studio.resetLearning} className="mt-5 text-xs text-muted underline-offset-4 hover:text-pink hover:underline">
-        Zerar aprendizado
+      <button type="button" onClick={studio.resetLearning} className="text-xs text-muted underline-offset-4 hover:text-ink hover:underline">
+        Apagar o aprendizado
       </button>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-line bg-white/[0.03] p-3 text-center">
-      <motion.p key={value} initial={{ scale: 1.3, color: "#ff7a3d" }} animate={{ scale: 1, color: "#eceefb" }} className="font-display text-2xl font-bold">
-        {value}
-      </motion.p>
-      <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
     </div>
   );
 }

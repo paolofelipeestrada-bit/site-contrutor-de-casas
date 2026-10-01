@@ -37,13 +37,14 @@ export const STYLE_INFO: Record<Style, { label: string; socialBoost: number; not
   classico: { label: "Clássico", socialBoost: 0.95, note: "ambientes mais compartimentados" },
 };
 
+/** Cores dos ambientes na planta: tons neutros, só o setor social leva o acento. */
 export const ZONE_COLORS: Record<Zone, { fill: string; stroke: string; text: string }> = {
-  social: { fill: "rgba(255,122,61,0.16)", stroke: "#ff7a3d", text: "#ffd2bd" },
-  private: { fill: "rgba(167,139,250,0.17)", stroke: "#a78bfa", text: "#ddd3ff" },
-  service: { fill: "rgba(56,189,248,0.16)", stroke: "#38bdf8", text: "#c4ecff" },
-  outdoor: { fill: "rgba(163,230,53,0.13)", stroke: "#a3e635", text: "#e3f8c0" },
-  garage: { fill: "rgba(148,163,184,0.12)", stroke: "#94a3b8", text: "#dbe3ee" },
-  circulation: { fill: "rgba(255,255,255,0.035)", stroke: "#475569", text: "#94a3b8" },
+  social: { fill: "rgba(224,122,63,0.13)", stroke: "#e07a3f", text: "#f3d9c8" },
+  private: { fill: "rgba(236,235,231,0.07)", stroke: "#c9c7c0", text: "#ecebe7" },
+  service: { fill: "rgba(236,235,231,0.035)", stroke: "#8f8e88", text: "#d6d4ce" },
+  outdoor: { fill: "rgba(143,181,115,0.10)", stroke: "#8fb573", text: "#dfe8d6" },
+  garage: { fill: "rgba(236,235,231,0.02)", stroke: "#6f6e69", text: "#cfcdc7" },
+  circulation: { fill: "rgba(236,235,231,0.0)", stroke: "#55544f", text: "#8f8e88" },
 };
 
 export const ZONE_LABELS: Record<Zone, string> = {

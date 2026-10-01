@@ -64,7 +64,7 @@ export function parseCommand(input: string, rooms: PlacedRoom[]): Command {
     const sign = /^(aument|ampli|cresc|expand)/.test(grow[1]) ? 1 : -1;
     return { kind: "resize", roomId: room.id, delta: sign * Number(grow[3].replace(",", ".")) };
   }
-  const set = t.match(new RegExp(`(?:deixar|definir|colocar|mudar)\\s+(.+?)\\s+(?:com|para|em)\\s+${NUM}\\s*(?:m2|m 2|metros)`));
+  const set = t.match(new RegExp(`(?:deixar|definir|colocar|mudar|quero)\\s+(.+?)\\s+(?:com|para|em)\\s+${NUM}\\s*(?:m2|m 2|metros)`));
   if (set) {
     const room = findRoom(set[1], rooms);
     if (!room) return { kind: "unknown", reason: `Não achei o cômodo "${set[1]}".` };

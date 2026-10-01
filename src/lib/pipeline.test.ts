@@ -176,3 +176,75 @@ describe("robustez em vários briefings", () => {
     });
   }
 });
+
+describe("camadas técnicas, opções e relatório", async () => {
+  const { electricalFor, luzVA } = await import("./plan/electrical");
+  const { plumbingFor } = await import("./plan/plumbing");
+  const { gerarOpcoes } = await import("./plan/profiles");
+  const { verificacoes, explicarProjeto } = await import("./plan/report");
+  const brief = interpretLocally(DEFAULT_FORM, EXEMPLO);
+  const plan = plansFromBrief(brief)[0];
+
+  it("elétrica: luz em todo cômodo, quadro, chuveiro com circuito próprio e proteção coerente", () => {
+    const e = electricalFor(plan);
+    for (const r of plan.rooms) expect(e.pontos.some((p) => p.kind === "luz" && p.roomId === r.id)).toBe(true);
+    expect(e.pontos.filter((p) => p.kind === "quadro")).toHaveLength(1);
+    const chuveiros = e.circuitos.filter((c) => c.nome.startsWith("Chuveiro"));
+    expect(chuveiros.length).toBe(plan.rooms.filter((r) => r.tipo === "banheiro" || r.tipo === "banheiro_suite").length);
+    for (const c of chuveiros) {
+      expect(c.disjuntor).toBeGreaterThanOrEqual(c.corrente);
+      expect(c.cabo).toBeGreaterThanOrEqual(4);
+    }
+    for (const c of e.circuitos.filter((x) => x.tipo !== "Uso específico")) expect(c.va).toBeLessThanOrEqual(2200);
+    expect(e.pontos.every((p) => p.kind === "quadro" || p.circuito > 0)).toBe(true);
+    expect(luzVA(6)).toBe(100);
+    expect(luzVA(14)).toBe(220);
+  });
+
+  it("hidráulica: todo aparelho tem água e esgoto, caixa d'água pelo nº de moradores", () => {
+    const h = plumbingFor(plan, { ...brief, regras: { moradores: 5 } });
+    expect(h.reservatorio.litros).toBe(1500);
+    expect(h.aparelhos.some((a) => a.kind === "vaso")).toBe(true);
+    for (const a of h.aparelhos) {
+      const toca = (tipo: string) => h.trechos.some((t) => t.tipo === tipo && t.pts.some((p) => Math.abs(p.x - a.x) < 1e-6 && Math.abs(p.y - a.y) < 1e-6));
+      expect(toca("fria")).toBe(true);
+      expect(toca("esgoto")).toBe(true);
+    }
+    expect(h.caixas.some((c) => c.tipo === "CG")).toBe(true);
+    expect(h.materiais.find((m) => m.item.includes("100 mm"))?.qtd).toBeGreaterThan(0);
+  });
+
+  it("gera 3 opções diferentes e ordenadas por nota dentro de cada perfil", () => {
+    const opcoes = gerarOpcoes(brief);
+    expect(opcoes.map((o) => o.perfil.id)).toEqual(["equilibrada", "social", "privacidade"]);
+    const sigs = opcoes.map((o) => o.plans[0].rooms.map((r) => `${r.x.toFixed(1)},${r.y.toFixed(1)},${r.w.toFixed(1)}`).join());
+    expect(new Set(sigs).size).toBe(3);
+    const salaSocial = opcoes[1].plans[0].rooms.find((r) => r.tipo === "sala")!;
+    const salaEq = opcoes[0].plans[0].rooms.find((r) => r.tipo === "sala")!;
+    expect(salaSocial.w * salaSocial.h).toBeGreaterThan(salaEq.w * salaEq.h);
+  });
+
+  it("recuos informados e acessibilidade mudam a planta", () => {
+    const b2 = { ...brief, regras: { recuos: { frente: 6, laterais: 2 }, acessivel: true } };
+    const p2 = plansFromBrief(b2)[0];
+    expect(p2.footprint.y).toBeCloseTo(6);
+    expect(p2.footprint.x).toBeGreaterThanOrEqual(2);
+    const corredor = p2.rooms.find((r) => r.tipo === "circulacao")!;
+    expect(Math.min(corredor.w, corredor.h)).toBeGreaterThan(1.1);
+  });
+
+  it("verificações e explicação descrevem a planta", () => {
+    const checks = verificacoes(plan, brief);
+    expect(checks.length).toBeGreaterThanOrEqual(6);
+    expect(checks.find((c) => c.texto.startsWith("Garagem"))?.ok).toBe(true);
+    const texto = explicarProjeto(plan, { ...brief, regras: { norte: "fundos" } }).join(" ");
+    expect(texto).toMatch(/sala tem/);
+    expect(texto).toMatch(/garagem tem/);
+    expect(texto).toMatch(/norte/);
+  });
+
+  it("comando 'quero a suíte com 16 m²'", async () => {
+    const { parseCommand } = await import("./plan/commands");
+    expect(parseCommand("quero a suíte com 16 m²", plan.rooms)).toMatchObject({ kind: "set", area: 16 });
+  });
+});

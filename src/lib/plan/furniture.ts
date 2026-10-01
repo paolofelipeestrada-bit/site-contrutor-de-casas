@@ -1,9 +1,12 @@
 import type { Opening, PlacedRoom, Side } from "../types";
 
 /** Peça de mobiliário em metros, nas coordenadas do terreno (y = 0 na rua). */
+/** Peças que viram pontos de água, esgoto ou energia nas camadas técnicas. */
+export type Fixture = "vaso" | "lavatorio" | "chuveiro" | "pia" | "tanque" | "maquina" | "fogao" | "geladeira";
+
 export type Piece =
-  | { kind: "rect"; x: number; y: number; w: number; h: number; r?: number; tone?: "soft" | "strong" | "accent" }
-  | { kind: "circle"; cx: number; cy: number; r: number; tone?: "soft" | "strong" | "accent" }
+  | { kind: "rect"; x: number; y: number; w: number; h: number; r?: number; tone?: "soft" | "strong" | "accent"; fixture?: Fixture }
+  | { kind: "circle"; cx: number; cy: number; r: number; tone?: "soft" | "strong" | "accent"; fixture?: Fixture }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number };
 
 /**
@@ -112,10 +115,10 @@ export function furnitureFor(room: PlacedRoom, openings: Opening[], car?: { comp
     case "cozinha": {
       const L = Math.max(0, main.len - 0.1);
       out.push(main.rect(0.05, 0.02, L, 0.6, "accent", 0.02));
-      out.push(main.rect(0.12, 0.08, 0.7, 0.48, "strong", 0.02)); // geladeira
-      out.push(main.circle(Math.min(L - 0.5, 1.5), 0.32, 0.12, "soft"));
+      out.push(tag(main.rect(0.12, 0.08, 0.7, 0.48, "strong", 0.02), "geladeira"));
+      out.push(tag(main.circle(Math.min(L - 0.5, 1.5), 0.32, 0.12, "soft"), "fogao"));
       out.push(main.circle(Math.min(L - 0.5, 1.5) + 0.3, 0.32, 0.12, "soft"));
-      out.push(main.rect(Math.max(0.9, L - 1.2), 0.12, 0.6, 0.38, "soft", 0.12)); // cuba
+      out.push(tag(main.rect(Math.max(0.9, L - 1.2), 0.12, 0.6, 0.38, "soft", 0.12), "pia"));
       if (room.w * room.h > 14 && main.depth > 3.2) out.push(main.rect(main.len / 2 - 0.9, 1.6, 1.8, 0.8, "strong", 0.04));
       break;
     }
@@ -123,20 +126,20 @@ export function furnitureFor(room: PlacedRoom, openings: Opening[], car?: { comp
     case "banheiro_suite":
     case "lavabo": {
       const f = frame(room, sides[0]);
-      out.push(f.rect(0.12, 0.02, 0.4, 0.62, "strong", 0.18)); // vaso
-      if (f.len > 1.3) out.push(f.rect(0.7, 0.02, 0.55, 0.42, "soft", 0.12)); // pia
+      out.push(tag(f.rect(0.12, 0.02, 0.4, 0.62, "strong", 0.18), "vaso"));
+      out.push(tag(f.len > 1.3 ? f.rect(0.7, 0.02, 0.55, 0.42, "soft", 0.12) : f.rect(0.12, 0.7, 0.4, 0.35, "soft", 0.12), "lavatorio"));
       if (room.tipo !== "lavabo" && f.len > 2.1) {
-        out.push(f.rect(f.len - 0.95, 0.02, 0.9, Math.min(0.9, f.depth - 0.1), "accent", 0.02)); // box
+        out.push(tag(f.rect(f.len - 0.95, 0.02, 0.9, Math.min(0.9, f.depth - 0.1), "accent", 0.02), "chuveiro"));
         out.push({ kind: "line", ...lineIn(f, f.len - 0.95, 0.02, f.len - 0.05, Math.min(0.9, f.depth - 0.1)) });
       } else if (room.tipo !== "lavabo") {
         const g = frame(room, opposite(sides[0]));
-        out.push(g.rect(0.05, 0.02, Math.min(0.9, g.len - 0.1), Math.min(0.9, g.depth - 0.7), "accent", 0.02));
+        out.push(tag(g.rect(0.05, 0.02, Math.min(0.9, g.len - 0.1), Math.max(0.6, Math.min(0.9, g.depth - 0.7)), "accent", 0.02), "chuveiro"));
       }
       break;
     }
     case "lavanderia": {
-      out.push(main.rect(0.08, 0.02, 0.6, 0.55, "strong", 0.04));
-      if (main.len > 1.4) out.push(main.circle(1.1, 0.32, 0.27, "soft"));
+      out.push(tag(main.rect(0.08, 0.02, 0.6, 0.55, "strong", 0.04), "tanque"));
+      out.push(tag(main.len > 1.4 ? main.circle(1.1, 0.32, 0.27, "soft") : main.circle(0.38, 0.95, 0.27, "soft"), "maquina"));
       break;
     }
     case "escritorio": {
@@ -167,11 +170,31 @@ export function furnitureFor(room: PlacedRoom, openings: Opening[], car?: { comp
         out.push(main.circle(main.len * 0.3, main.depth / 2, Math.min(0.5, main.depth / 2 - 0.35), "strong"));
         out.push(main.rect(main.len * 0.55, 0.15, Math.min(1.9, main.len * 0.35), 0.75, "soft", 0.12));
       }
-      if (room.tipo === "area_gourmet") out.push(main.rect(0.05, 0.02, Math.min(2.4, main.len - 0.1), 0.6, "accent", 0.02));
+      if (room.tipo === "area_gourmet") out.push(tag(main.rect(0.05, 0.02, Math.min(2.4, main.len - 0.1), 0.6, "accent", 0.02), "pia"));
       break;
     }
   }
   return out;
+}
+
+function tag(p: Piece, fixture: Fixture): Piece {
+  return p.kind === "line" ? p : { ...p, fixture };
+}
+
+/** Centro de uma peça (m). */
+export function pieceCenter(p: Piece): { x: number; y: number } {
+  if (p.kind === "rect") return { x: p.x + p.w / 2, y: p.y + p.h / 2 };
+  if (p.kind === "circle") return { x: p.cx, y: p.cy };
+  return { x: (p.x1 + p.x2) / 2, y: (p.y1 + p.y2) / 2 };
+}
+
+/** Todos os aparelhos (vaso, pia, chuveiro…) da planta, com posição e cômodo. */
+export function fixturesOf(rooms: PlacedRoom[], openings: Opening[]) {
+  return rooms.flatMap((room) =>
+    furnitureFor(room, openings)
+      .filter((p): p is Extract<Piece, { fixture?: Fixture }> & { fixture: Fixture } => p.kind !== "line" && !!p.fixture)
+      .map((p) => ({ kind: p.fixture, roomId: room.id, ...pieceCenter(p) })),
+  );
 }
 
 function opposite(s: Side): Side {

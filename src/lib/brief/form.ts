@@ -1,4 +1,4 @@
-import type { Style, VarandaPosicao } from "../types";
+import type { Norte, Style, VarandaPosicao } from "../types";
 
 /** Valores do formulário guiado (o briefing "clicável"). */
 export interface FormValues {
@@ -21,6 +21,15 @@ export interface FormValues {
   estilo: Style;
   carro: { comprimento: number; largura: number; vagas: number };
   descricao: string;
+  /** Opções avançadas: null = regra automática */
+  avancado: {
+    recuoFrente: number | null;
+    recuoFundos: number | null;
+    recuoLaterais: number | null;
+    norte: Norte | null;
+    moradores: number;
+    acessivel: boolean;
+  };
 }
 
 export const DEFAULT_FORM: FormValues = {
@@ -42,6 +51,7 @@ export const DEFAULT_FORM: FormValues = {
   varandaPosicao: "fundos",
   estilo: "moderno",
   carro: { comprimento: 4.5, largura: 1.8, vagas: 1 },
+  avancado: { recuoFrente: null, recuoFundos: null, recuoLaterais: null, norte: null, moradores: 4, acessivel: false },
   descricao:
     "Quero uma sala integrada à cozinha, bastante luz natural, quartos mais reservados e uma varanda nos fundos para reunir a família.",
 };

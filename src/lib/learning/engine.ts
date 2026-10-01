@@ -30,6 +30,8 @@ export interface LearningState {
     integrada: { sim: number; nao: number };
     varanda: Partial<Record<VarandaPosicao, number>>;
     estilo: Partial<Record<Style, number>>;
+    /** quantas vezes cada opção (Equilibrada, Área social, Privacidade) foi escolhida */
+    perfil?: Partial<Record<string, number>>;
   };
   examples: { texto: string; brief: Brief; at: number }[];
   log: LearningEvent[];
@@ -125,6 +127,19 @@ export function recordRating(state: LearningState, up: boolean, strategy: Layout
   };
 }
 
+/** O usuário clicou em "Escolher esta" numa das 3 opções. */
+export function recordChoice(state: LearningState, perfilId: string, nome: string): LearningState {
+  const perfil = { ...(state.prefs.perfil ?? {}) };
+  perfil[perfilId] = (perfil[perfilId] ?? 0) + 1;
+  return { ...state, prefs: { ...state.prefs, perfil }, log: pushLog(state, "like", `Escolheu a opção "${nome}"`) };
+}
+
+/** Perfil mais escolhido (para já abrir nele), se houver preferência clara. */
+export function preferredProfile(state: LearningState): string | null {
+  const top = Object.entries(state.prefs.perfil ?? {}).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))[0];
+  return top && (top[1] ?? 0) >= 2 ? top[0] : null;
+}
+
 export const STRATEGY_LABEL: Record<LayoutStrategy["kind"], string> = {
   faixas: "social na frente, íntimo atrás",
   lateral: "social e íntimo lado a lado",
@@ -143,6 +158,8 @@ export function learnedHints(state: LearningState): string[] {
   if (sim + nao >= 2) hints.push(sim >= nao ? "Costuma aprovar sala e cozinha integradas." : "Costuma preferir cozinha separada da sala.");
   const varanda = Object.entries(state.prefs.varanda).sort((a, b) => b[1] - a[1])[0];
   if (varanda && varanda[1] >= 2) hints.push(`Gosta de varanda ${varanda[0] === "fundos" ? "nos fundos" : varanda[0] === "frente" ? "na frente" : "na lateral"}.`);
+  const perfilTop = preferredProfile(state);
+  if (perfilTop) hints.push(`Costuma escolher a opção "${perfilTop === "social" ? "Área social" : perfilTop === "privacidade" ? "Privacidade" : "Equilibrada"}".`);
   const estilo = Object.entries(state.prefs.estilo).sort((a, b) => b[1] - a[1])[0];
   if (estilo && estilo[1] >= 2) hints.push(`Estilo mais aprovado: ${estilo[0]}.`);
   for (const [key, p] of Object.entries(state.strategy)) {

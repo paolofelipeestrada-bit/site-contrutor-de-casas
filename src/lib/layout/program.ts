@@ -17,7 +17,13 @@ export function garageSize(carro: NonNullable<Brief["carro"]>): { w: number; h: 
  * Brief → Programa de necessidades (lista de cômodos com área-alvo).
  * As áreas vêm de: edição do usuário (overrides) > área pedida no briefing > prior aprendido × escala da casa.
  */
-export function buildProgram(brief: Brief, learning?: LearningState, overrides: Record<string, number> = {}): Program {
+export function buildProgram(
+  brief: Brief,
+  learning?: LearningState,
+  overrides: Record<string, number> = {},
+  /** multiplicadores de área por tipo (usados pelos perfis "Área social" e "Privacidade") */
+  multipliers: Partial<Record<RoomType, number>> = {},
+): Program {
   const counters: Partial<Record<RoomType, number>> = {};
   const nextId = (tipo: RoomType) => {
     counters[tipo] = (counters[tipo] ?? 0) + 1;
@@ -32,7 +38,7 @@ export function buildProgram(brief: Brief, learning?: LearningState, overrides: 
     const info = ROOM_INFO[tipo];
     const id = nextId(tipo);
     const learned = learning ? areaFactor(learning, tipo) : 1;
-    const base = info.baseArea * learned * (info.zone === "social" ? boost : 1);
+    const base = info.baseArea * learned * (info.zone === "social" ? boost : 1) * (multipliers[tipo] ?? 1);
     const override = overrides[id];
     const area = override ?? explicitArea ?? base;
     const d: Draft = {

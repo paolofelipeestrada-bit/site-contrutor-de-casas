@@ -4,10 +4,25 @@ import type { Brief, LayoutStrategy, Opening, PlacedRoom, Plan, Program, Rect, R
 import { leaf, leaves, resetSplitIds, slice, split, type SNode } from "./slicing";
 
 const EPS = 1e-6;
+/** Largura do corredor (m). Com acessibilidade, 1,20 m. */
 const CORRIDOR = 1.0;
+export const corridorWidth = (brief: Brief) => (brief.regras?.acessivel ? 1.2 : CORRIDOR);
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function setbacksFor(lotW: number, lotD: number) {
+/** Recuos: os informados nas opções avançadas, ou a regra automática abaixo. */
+export function setbacksFor(lotW: number, lotD: number, regras?: Brief["regras"]) {
+  const auto = autoSetbacks(lotW, lotD);
+  const r = regras?.recuos;
+  if (!r) return auto;
+  return {
+    front: r.frente ?? auto.front,
+    back: r.fundos ?? auto.back,
+    left: r.laterais ?? auto.left,
+    right: r.laterais ?? auto.right,
+  };
+}
+
+function autoSetbacks(lotW: number, lotD: number) {
   const front = lotD > 22 ? 4 : lotD >= 15 ? 3 : 2;
   const back = lotD >= 15 ? 2 : 1.5;
   let left = 0;
@@ -253,7 +268,7 @@ function openingsFor(rooms: PlacedRoom[], brief: Brief, issues: string[]): Openi
     const pair = new Set([a.tipo, b.tipo]);
     const isPair = (x: RoomType, y: RoomType) => pair.has(x) && pair.has(y) && (x !== y || a.tipo === b.tipo);
     let kind: Opening["kind"] = "door";
-    let width = a.tipo.startsWith("banheiro") || a.tipo === "lavabo" || a.tipo === "closet" ? 0.7 : 0.8;
+    let width = brief.regras?.acessivel ? 0.9 : a.tipo.startsWith("banheiro") || a.tipo === "lavabo" || a.tipo === "closet" ? 0.7 : 0.8;
     let t = 0.08;
     if ((isPair("sala", "cozinha") && integrada) || isPair("sala", "jantar") || (isPair("jantar", "cozinha") && integrada)) {
       kind = "passage";
@@ -428,7 +443,7 @@ export interface LayoutOptions {
 
 export function layoutWith(program: Program, brief: Brief, strategy: LayoutStrategy, opts: LayoutOptions = {}): Plan {
   const lot = { width: brief.terreno.largura, depth: brief.terreno.profundidade };
-  const sb = setbacksFor(lot.width, lot.depth);
+  const sb = setbacksFor(lot.width, lot.depth, brief.regras);
   const Dmax = lot.depth - sb.front - sb.back;
   const W = strategy.width;
   const corridorId = "circulacao-1";
@@ -438,7 +453,7 @@ export function layoutWith(program: Program, brief: Brief, strategy: LayoutStrat
     tipo: "circulacao",
     nome: "Circulação",
     zone: "circulation",
-    area: Math.max(3, (privateArea / 3.6) * CORRIDOR),
+    area: Math.max(3, (privateArea / 3.6) * corridorWidth(brief)),
     minWidth: 0.9,
   };
   const specs = [...program.rooms, corridorSpec];
@@ -466,7 +481,7 @@ export function layoutWith(program: Program, brief: Brief, strategy: LayoutStrat
       const controlled = axis === "x" ? rr.w : rr.h;
       if (r.tipo === "circulacao") {
         const long = Math.max(rr.w, rr.h);
-        const target = long * CORRIDOR;
+        const target = long * corridorWidth(brief);
         if (Math.abs(target - weights[r.id]) > 0.05) {
           weights[r.id] = target;
           changed = true;
@@ -555,7 +570,7 @@ export function layoutWith(program: Program, brief: Brief, strategy: LayoutStrat
 
 /** Gera todas as variações, pontua e devolve da melhor para a pior. */
 export function generatePlans(program: Program, brief: Brief, opts: LayoutOptions = {}): Plan[] {
-  const sb = setbacksFor(brief.terreno.largura, brief.terreno.profundidade);
+  const sb = setbacksFor(brief.terreno.largura, brief.terreno.profundidade, brief.regras);
   const Wavail = brief.terreno.largura - sb.left - sb.right;
   const totalArea = program.rooms.reduce((s, r) => s + r.area, 0) * 1.1;
   const widths = new Set<number>([Number(Wavail.toFixed(2))]);
@@ -586,7 +601,7 @@ export function generatePlans(program: Program, brief: Brief, opts: LayoutOption
 
 /** Explica a nota de uma planta em frases curtas (penalidades relevantes). */
 export function explainPlan(plan: Plan, brief: Brief, learning?: LearningState): string[] {
-  const sb = setbacksFor(brief.terreno.largura, brief.terreno.profundidade);
+  const sb = setbacksFor(brief.terreno.largura, brief.terreno.profundidade, brief.regras);
   const why: string[] = [];
   scorePlan(plan, brief, brief.terreno.profundidade - sb.front - sb.back, learning, why);
   return why.filter((w) => !/^-0\.[0-4]/.test(w));
