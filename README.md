@@ -26,6 +26,7 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 
 | Quero mudar… | Arquivo |
 |---|---|
+| Animações (tempos, curvas, ordem do desenho) | `src/lib/motion.ts` |
 | Cores e fontes do site | `src/index.css` (bloco `@theme`) e a fonte em `index.html` |
 | Nome do site e imagem do topo | `src/config.ts` (`heroImage: "/images/hero.webp"` usa uma imagem de `public/images/`) |
 | Textos das seções | `src/sections/*.tsx` (Hero, Pipeline = "Como funciona", Roadmap = "Fases") |

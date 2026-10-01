@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ZONE_COLORS } from "../lib/catalog";
+import { DUR, EASE, EASE_DRAW, PLANTA, STAGGER } from "../lib/motion";
 import { furnitureFor, type Piece } from "../lib/plan/furniture";
 import type { SplitHandle } from "../lib/layout/slicing";
 import type { Brief, Opening, PlacedRoom, Plan } from "../lib/types";
@@ -161,7 +162,7 @@ export function PlanViewer({
             fill={c.fill}
             initial={animate ? { opacity: 0 } : false}
             animate={{ opacity: tecnica ? 0.35 : editMode && selectedId && !selected ? 0.45 : 1 }}
-            transition={{ delay: animate ? 0.9 + d(i) * 0.06 : 0, duration: 0.5 }}
+            transition={{ delay: animate ? PLANTA.pisos + d(i) * STAGGER.curto : 0, duration: DUR.base, ease: EASE }}
             onPointerDown={(e) => {
               e.stopPropagation();
               onSelect(r.id === selectedId ? null : r.id);
@@ -177,7 +178,7 @@ export function PlanViewer({
           key={`m-${id}`}
           initial={animate ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
-          transition={{ delay: animate ? 1.8 + d(i) * 0.05 : 0, duration: 0.6 }}
+          transition={{ delay: animate ? PLANTA.moveis + d(i) * STAGGER.curto : 0, duration: DUR.base, ease: EASE }}
           pointerEvents="none"
         >
           {pieces.map((p, j) => (
@@ -201,7 +202,7 @@ export function PlanViewer({
           strokeLinejoin="miter"
           initial={animate ? { pathLength: 0, opacity: 0 } : false}
           animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ delay: animate ? 0.15 + d(i) * 0.07 : 0, duration: animate ? 0.9 : 0, ease: "easeInOut" }}
+          transition={{ delay: animate ? PLANTA.paredes + d(i) * STAGGER.curto : 0, duration: animate ? DUR.traco * 0.7 : 0, ease: EASE_DRAW }}
           pointerEvents="none"
         />
       ))}
@@ -215,7 +216,7 @@ export function PlanViewer({
         strokeWidth={WALL * 1.4}
         initial={animate ? { pathLength: 0 } : false}
         animate={{ pathLength: 1 }}
-        transition={{ duration: animate ? 1.4 : 0, ease: "easeInOut" }}
+        transition={{ delay: PLANTA.contorno, duration: animate ? DUR.traco * 1.3 : 0, ease: EASE_DRAW }}
         pointerEvents="none"
         
       />
@@ -224,7 +225,7 @@ export function PlanViewer({
       <motion.g
         initial={animate ? { opacity: 0 } : false}
         animate={{ opacity: 1 }}
-        transition={{ delay: animate ? 1.5 : 0, duration: 0.5 }}
+        transition={{ delay: animate ? PLANTA.aberturas : 0, duration: DUR.base, ease: EASE }}
         pointerEvents="none"
       >
         {plan.openings.map((o, i) => (
@@ -235,7 +236,7 @@ export function PlanViewer({
       {/* Rótulos */}
       {!thumbnail &&
         plan.rooms.map((r, i) => (
-          <RoomLabel key={`l-${r.id}`} r={r} fy={fy} delay={animate ? 1.2 + d(i) * 0.06 : 0} animate={animate} selected={r.id === selectedId} muted={tecnica} />
+          <RoomLabel key={`l-${r.id}`} r={r} fy={fy} delay={animate ? PLANTA.rotulos + d(i) * STAGGER.curto : 0} animate={animate} selected={r.id === selectedId} muted={tecnica} />
         ))}
 
       {/* Camada técnica */}
@@ -334,7 +335,7 @@ function RoomLabel({ r, fy, delay, animate, selected, muted }: { r: PlacedRoom; 
     <motion.g
       initial={animate ? { opacity: 0, y: 0.3 } : false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.5 }}
+      transition={{ delay, duration: DUR.base, ease: EASE }}
       pointerEvents="none"
       transform={vertical ? `rotate(-90 ${cx} ${cy})` : undefined}
     >

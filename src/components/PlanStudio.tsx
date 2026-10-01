@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FlipHorizontal2, Minus, MousePointer2, Pencil, Plus, RotateCcw, Send, Shuffle, ThumbsDown, ThumbsUp, Ruler } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ROOM_INFO } from "../lib/catalog";
+import { DUR, EASE, transition } from "../lib/motion";
 import { STRATEGY_LABEL, learnedHints } from "../lib/learning/engine";
 import { electricalFor } from "../lib/plan/electrical";
 import { plumbingFor } from "../lib/plan/plumbing";
@@ -80,9 +81,12 @@ export function PlanStudio({ studio }: { studio: Studio }) {
               type="button"
               onClick={() => setTab(k)}
               aria-current={tab === k}
-              className={`-mb-px shrink-0 border-b-2 px-3 py-2 font-medium transition ${tab === k ? "border-primary text-ink" : "border-transparent text-muted hover:text-ink"}`}
+              className={`relative shrink-0 px-3 py-2 font-medium transition-colors ${tab === k ? "text-ink" : "text-muted hover:text-ink"}`}
             >
               {label}
+              {tab === k && (
+                <motion.span layoutId="aba-ativa" className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" transition={{ duration: DUR.base, ease: EASE }} />
+              )}
             </button>
           ))}
         </nav>
@@ -117,7 +121,12 @@ export function PlanStudio({ studio }: { studio: Studio }) {
               />
               <div className="absolute right-3 top-3 flex rounded-lg border border-line bg-bg/90 p-0.5 text-[11px] font-semibold">
                 {(["casa", "terreno"] as const).map((z) => (
-                  <button key={z} type="button" onClick={() => setZoom(z)} className={`rounded-md px-2.5 py-1 ${zoom === z ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}>
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => setZoom(z)}
+                    className={`rounded-md px-2.5 py-1 ${zoom === z ? "bg-ink text-bg" : "text-muted hover:text-ink"}`}
+                  >
                     {z === "casa" ? "Casa" : "Terreno"}
                   </button>
                 ))}
@@ -136,14 +145,26 @@ export function PlanStudio({ studio }: { studio: Studio }) {
         </div>
       </div>
 
-      {plan && !generating && tab === "arquitetura" && (
-        <>
-          <Toolbar studio={studio} />
-          <ProjectReport studio={studio} />
-        </>
-      )}
-      {plan && !generating && tab === "eletrica" && eletrica && <ElectricalPanel e={eletrica} />}
-      {plan && !generating && tab === "hidraulica" && hidraulica && <PlumbingPanel h={hidraulica} />}
+      <AnimatePresence mode="wait" initial={false}>
+        {plan && !generating && (
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={transition(0, DUR.rapido + 0.1)}
+          >
+            {tab === "arquitetura" && (
+              <div className="space-y-5">
+                <Toolbar studio={studio} />
+                <ProjectReport studio={studio} />
+              </div>
+            )}
+            {tab === "eletrica" && eletrica && <ElectricalPanel e={eletrica} />}
+            {tab === "hidraulica" && hidraulica && <PlumbingPanel h={hidraulica} />}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -174,7 +195,11 @@ function Toolbar({ studio }: { studio: Studio }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setEditMode(!editMode)} className={`${btn} ${editMode ? "border-primary bg-primary text-bg" : "border-line hover:border-white/25"}`}>
+        <button
+          type="button"
+          onClick={() => setEditMode(!editMode)}
+          className={`${btn} ${editMode ? "border-primary bg-primary text-bg" : "border-line hover:border-white/25"}`}
+        >
           <Pencil className="size-4" /> {editMode ? "Editando" : "Modo editar"}
         </button>
         <button type="button" onClick={studio.nextOption} className={`${btn} border-line hover:border-white/25`}>
@@ -237,52 +262,71 @@ function Toolbar({ studio }: { studio: Studio }) {
         )}
       </AnimatePresence>
 
-      {selected && (
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-card p-4">
-          <div className="min-w-0">
-            <p className="eyebrow">{ROOM_INFO[selected.tipo].label}</p>
-            <p className="font-display text-xl font-semibold">{selected.nome}</p>
-            <p className="tabular font-mono text-sm">
-              {fmt(selected.w, 2)} × {fmt(selected.h, 2)} m · {fmt(selected.w * selected.h, 2)} m²
-            </p>
-            <p className="text-xs text-muted">Largura mínima recomendada: {fmt(ROOM_INFO[selected.tipo].minWidth, 2)} m</p>
-          </div>
-          {selected.tipo !== "circulacao" && (
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h - 1)} className={`${btn} border-line`} aria-label="Diminuir 1 m²">
-                <Minus className="size-4" /> 1 m²
-              </button>
-              <button type="button" onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h + 1)} className={`${btn} border-line`} aria-label="Aumentar 1 m²">
-                <Plus className="size-4" /> 1 m²
-              </button>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const v = Number(areaInput.replace(",", "."));
-                  if (v > 0) studio.setRoomArea(selected.id, v);
-                  setAreaInput("");
-                }}
-                className="flex items-center gap-1"
-              >
-                <label htmlFor="area-comodo" className="sr-only">
-                  Nova área em m²
-                </label>
-                <input
-                  id="area-comodo"
-                  inputMode="decimal"
-                  value={areaInput}
-                  onChange={(e) => setAreaInput(e.target.value)}
-                  placeholder="m²"
-                  className="h-9 w-16 rounded-lg border border-line bg-bg px-2 text-right font-mono text-sm outline-none focus:border-primary"
-                />
-                <button type="submit" className={`${btn} border-line hover:border-primary`}>
-                  Aplicar
-                </button>
-              </form>
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            key={selected.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={transition(0, DUR.rapido + 0.1)}
+            className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-card p-4"
+          >
+            <div className="min-w-0">
+              <p className="eyebrow">{ROOM_INFO[selected.tipo].label}</p>
+              <p className="font-display text-xl font-semibold">{selected.nome}</p>
+              <p className="tabular font-mono text-sm">
+                {fmt(selected.w, 2)} × {fmt(selected.h, 2)} m · {fmt(selected.w * selected.h, 2)} m²
+              </p>
+              <p className="text-xs text-muted">Largura mínima recomendada: {fmt(ROOM_INFO[selected.tipo].minWidth, 2)} m</p>
             </div>
-          )}
-        </div>
-      )}
+            {selected.tipo !== "circulacao" && (
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h - 1)}
+                  className={`${btn} border-line`}
+                  aria-label="Diminuir 1 m²"
+                >
+                  <Minus className="size-4" /> 1 m²
+                </button>
+                <button
+                  type="button"
+                  onClick={() => studio.setRoomArea(selected.id, selected.w * selected.h + 1)}
+                  className={`${btn} border-line`}
+                  aria-label="Aumentar 1 m²"
+                >
+                  <Plus className="size-4" /> 1 m²
+                </button>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const v = Number(areaInput.replace(",", "."));
+                    if (v > 0) studio.setRoomArea(selected.id, v);
+                    setAreaInput("");
+                  }}
+                  className="flex items-center gap-1"
+                >
+                  <label htmlFor="area-comodo" className="sr-only">
+                    Nova área em m²
+                  </label>
+                  <input
+                    id="area-comodo"
+                    inputMode="decimal"
+                    value={areaInput}
+                    onChange={(e) => setAreaInput(e.target.value)}
+                    placeholder="m²"
+                    className="h-9 w-16 rounded-lg border border-line bg-bg px-2 text-right font-mono text-sm outline-none focus:border-primary"
+                  />
+                  <button type="submit" className={`${btn} border-line hover:border-primary`}>
+                    Aplicar
+                  </button>
+                </form>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

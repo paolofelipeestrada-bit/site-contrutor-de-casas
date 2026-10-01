@@ -15,45 +15,51 @@ const CHECKS = [
   "Área construída próxima da pedida",
 ];
 
+import { Reveal, RevealItem } from "../components/Reveal";
+
 export function Pipeline() {
   return (
     <section id="como-funciona" className="mx-auto max-w-7xl px-4 py-16 sm:px-8">
-      <div className="max-w-2xl">
-        <p className="eyebrow">Como funciona</p>
-        <h2 className="mt-2 font-display text-3xl font-bold sm:text-4xl">A IA entende o pedido. A geometria decide a planta.</h2>
-        <p className="mt-4 text-muted">
-          Geradores de imagem inventam plantas que não fecham as contas. Aqui cada medida sai de um cálculo que pode ser conferido, e por isso a planta pode ser editada sem
-          perder a coerência.
-        </p>
-      </div>
+      <Reveal className="max-w-2xl">
+        <RevealItem as="p" className="eyebrow">
+          Como funciona
+        </RevealItem>
+        <RevealItem as="h2" className="mt-2 font-display text-3xl font-bold sm:text-4xl">
+          A IA entende o pedido. A geometria decide a planta.
+        </RevealItem>
+        <RevealItem as="p" className="mt-4 text-muted">
+          Geradores de imagem inventam plantas que não fecham as contas. Aqui cada medida sai de um cálculo que pode ser conferido, e por isso a planta pode ser
+          editada sem perder a coerência.
+        </RevealItem>
+      </Reveal>
 
-      <ol className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+      <Reveal as="ol" each={0.12} className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map(([t, d], i) => (
-          <li key={t} className="bg-bg p-5">
+          <RevealItem as="li" key={t} className="bg-bg p-5">
             <span className="font-mono text-xs text-primary">0{i + 1}</span>
             <h3 className="mt-3 font-display text-lg font-semibold">{t}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">{d}</p>
-          </li>
+          </RevealItem>
         ))}
-      </ol>
+      </Reveal>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
           <h3 className="font-display text-xl font-semibold">O que é verificado em toda planta</h3>
-          <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <Reveal as="ul" each={0.06} className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
             {CHECKS.map((c) => (
-              <li key={c} className="flex gap-2">
+              <RevealItem as="li" key={c} className="flex gap-2">
                 <span className="text-ok">✓</span>
                 {c}
-              </li>
+              </RevealItem>
             ))}
-          </ul>
+          </Reveal>
         </div>
         <div>
           <h3 className="font-display text-xl font-semibold">Aprende com o uso</h3>
           <p className="mt-4 text-sm leading-relaxed text-muted">
-            Quando você aumenta a suíte, escolhe a opção “Área social” ou rejeita um layout, o sistema guarda essa preferência. As próximas plantas já começam com as áreas e a
-            distribuição que você costuma aprovar, e a IA recebe essas preferências como contexto.
+            Quando você aumenta a suíte, escolhe a opção “Área social” ou rejeita um layout, o sistema guarda essa preferência. As próximas plantas já começam
+            com as áreas e a distribuição que você costuma aprovar, e a IA recebe essas preferências como contexto.
           </p>
         </div>
       </div>

@@ -12,9 +12,15 @@ export function Header() {
           <span className="font-display text-xl font-bold tracking-tight">{SITE.nome}</span>
         </a>
         <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
-          <a href="#como-funciona" className="hover:text-ink">Como funciona</a>
-          <a href="#briefing" className="hover:text-ink">Criar planta</a>
-          <a href="#fases" className="hover:text-ink">Fases</a>
+          <a href="#como-funciona" className="hover:text-ink">
+            Como funciona
+          </a>
+          <a href="#briefing" className="hover:text-ink">
+            Criar planta
+          </a>
+          <a href="#fases" className="hover:text-ink">
+            Fases
+          </a>
         </nav>
         <a href="#briefing" className="rounded-lg bg-ink px-3.5 py-2 text-sm font-semibold text-bg hover:bg-white">
           Criar planta

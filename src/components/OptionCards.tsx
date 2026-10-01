@@ -1,4 +1,6 @@
+import { motion } from "framer-motion";
 import { Check } from "lucide-react";
+import { DUR, EASE, fadeUp, stagger } from "../lib/motion";
 import type { Studio } from "../hooks/useStudio";
 import { PlanViewer } from "./PlanViewer";
 
@@ -9,16 +11,26 @@ export function OptionCards({ studio }: { studio: Studio }) {
   const { result } = studio;
   if (!result) return null;
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <motion.div className="grid gap-3 sm:grid-cols-3" initial="hidden" animate="show" variants={stagger(0.1)}>
       {result.opcoes.map((o, i) => {
         const p = o.plans[0];
         const ativa = i === result.escolha;
         const area = (t: string) => p.rooms.filter((r) => r.tipo === t).reduce((s, r) => s + r.w * r.h, 0);
         return (
-          <article
+          <motion.article
             key={o.perfil.id}
-            className={`flex min-w-0 gap-3 rounded-xl border p-3 transition sm:flex-col ${ativa ? "border-primary bg-card" : "border-line bg-surface hover:border-white/20"}`}
+            variants={fadeUp}
+            whileHover={{ y: -3 }}
+            className={`relative flex min-w-0 gap-3 rounded-xl border p-3 transition-colors sm:flex-col ${ativa ? "border-transparent bg-card" : "border-line bg-surface hover:border-white/20"}`}
           >
+            {/* moldura laranja desliza até a opção escolhida */}
+            {ativa && (
+              <motion.span
+                layoutId="opcao-ativa"
+                className="pointer-events-none absolute inset-0 rounded-xl border-2 border-primary"
+                transition={{ duration: DUR.base, ease: EASE }}
+              />
+            )}
             <div className="h-24 w-20 shrink-0 overflow-hidden rounded-lg bg-[#141518] sm:h-32 sm:w-full">
               <PlanViewer plan={p} brief={result.brief} selectedId={null} onSelect={() => {}} editMode={false} animate={false} thumbnail />
             </div>
@@ -51,9 +63,9 @@ export function OptionCards({ studio }: { studio: Studio }) {
                 )}
               </button>
             </div>
-          </article>
+          </motion.article>
         );
       })}
-    </div>
+    </motion.div>
   );
 }

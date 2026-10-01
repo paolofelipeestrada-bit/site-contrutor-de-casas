@@ -1,4 +1,6 @@
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { DUR, EASE, EASE_DRAW, STAGGER } from "../lib/motion";
 import type { ProjetoEletrico } from "../lib/plan/electrical";
 import type { ProjetoHidraulico } from "../lib/plan/plumbing";
 import type { Pt } from "../lib/plan/geometry";
@@ -8,6 +10,20 @@ export const TECH = { power: "#e6b83d", water: "#5ba4d4", sewer: "#b98a63", labe
 
 type Fy = (y: number) => number;
 const poly = (pts: Pt[], fy: Fy) => pts.map((p) => `${p.x},${fy(p.y)}`).join(" ");
+/** Traço que se desenha (pathLength 0 → 1). */
+const draw = (delay: number) => ({
+  initial: { pathLength: 0, opacity: 0 },
+  animate: { pathLength: 1, opacity: 1 },
+  transition: { delay, duration: DUR.traco, ease: EASE_DRAW },
+});
+/** Símbolo que surge no lugar, crescendo a partir do próprio centro. */
+const popIn = (delay: number) => ({
+  initial: { opacity: 0, scale: 0.3 },
+  animate: { opacity: 1, scale: 1 },
+  transition: { delay, duration: 0.3, ease: EASE },
+  style: { transformBox: "fill-box" as const, transformOrigin: "center" },
+});
+
 const fmt = (v: number, d = 0) => v.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 // ─────────────── Desenho sobre a planta ───────────────
@@ -16,8 +32,9 @@ export function ElectricalOverlay({ e, fy }: { e: ProjetoEletrico; fy: Fy }) {
   const c = TECH.power;
   return (
     <g pointerEvents="none">
-      {e.trechos.map((t) => (
-        <polyline
+      {e.trechos.map((t, i) => (
+        <motion.polyline
+          {...draw(i * STAGGER.longo)}
           key={t.circuito}
           points={poly(t.pts, fy)}
           fill="none"
@@ -28,55 +45,72 @@ export function ElectricalOverlay({ e, fy }: { e: ProjetoEletrico; fy: Fy }) {
         />
       ))}
       {e.comandos.map((k, i) => (
-        <line key={i} x1={k.a.x} y1={fy(k.a.y)} x2={k.b.x} y2={fy(k.b.y)} stroke={c} strokeWidth={0.02} strokeDasharray="0.06 0.06" strokeOpacity={0.7} />
+        <motion.line
+          {...draw(0.6 + i * STAGGER.curto)}
+          key={i}
+          x1={k.a.x}
+          y1={fy(k.a.y)}
+          x2={k.b.x}
+          y2={fy(k.b.y)}
+          stroke={c}
+          strokeWidth={0.02}
+          strokeDasharray="0.06 0.06"
+          strokeOpacity={0.7}
+        />
       ))}
-      {e.pontos.map((p, i) => {
-        const x = p.x;
-        const y = fy(p.y);
-        switch (p.kind) {
-          case "luz":
-            return (
-              <g key={i}>
-                <circle cx={x} cy={y} r={0.2} fill="#141518" stroke={c} strokeWidth={0.04} />
-                <path d={`M${x - 0.14} ${y - 0.14} L${x + 0.14} ${y + 0.14} M${x + 0.14} ${y - 0.14} L${x - 0.14} ${y + 0.14}`} stroke={c} strokeWidth={0.03} />
-                <text x={x + 0.26} y={y - 0.14} fontSize={0.18} fill={c} fontFamily="var(--font-mono)">
-                  {p.circuito}
-                </text>
-              </g>
-            );
-          case "interruptor":
-            return (
-              <g key={i}>
-                <circle cx={x} cy={y} r={0.08} fill={c} />
-                <text x={x + 0.12} y={y + 0.06} fontSize={0.17} fill={c} fontFamily="var(--font-mono)">
-                  S
-                </text>
-              </g>
-            );
-          case "tug":
-            return <path key={i} d={`M${x} ${y - 0.14} L${x + 0.13} ${y + 0.09} L${x - 0.13} ${y + 0.09} Z`} fill="#141518" stroke={c} strokeWidth={0.03} />;
-          case "tue":
-            return (
-              <g key={i}>
-                <path d={`M${x} ${y - 0.16} L${x + 0.15} ${y + 0.1} L${x - 0.15} ${y + 0.1} Z`} fill={c} />
-                <text x={x + 0.2} y={y + 0.06} fontSize={0.17} fill={c} fontFamily="var(--font-mono)">
-                  {p.label}
-                </text>
-              </g>
-            );
-          case "quadro":
-            return (
-              <g key={i}>
-                <rect x={x - 0.3} y={y - 0.13} width={0.6} height={0.26} fill={c} />
-                <text x={x} y={y + 0.07} fontSize={0.17} textAnchor="middle" fill="#141518" fontWeight={700} fontFamily="var(--font-mono)">
-                  QD
-                </text>
-              </g>
-            );
-        }
-      })}
+      {e.pontos.map((p, i) => (
+        <motion.g key={i} {...popIn(0.3 + (p.circuito - 1 + (p.kind === "quadro" ? 0 : 1)) * STAGGER.longo + (i % 6) * 0.02)}>
+          {simbolo(p, fy, c)}
+        </motion.g>
+      ))}
     </g>
   );
+}
+
+function simbolo(p: ProjetoEletrico["pontos"][number], fy: Fy, c: string) {
+  const x = p.x;
+  const y = fy(p.y);
+  switch (p.kind) {
+    case "luz":
+      return (
+        <g>
+          <circle cx={x} cy={y} r={0.2} fill="#141518" stroke={c} strokeWidth={0.04} />
+          <path d={`M${x - 0.14} ${y - 0.14} L${x + 0.14} ${y + 0.14} M${x + 0.14} ${y - 0.14} L${x - 0.14} ${y + 0.14}`} stroke={c} strokeWidth={0.03} />
+          <text x={x + 0.26} y={y - 0.14} fontSize={0.18} fill={c} fontFamily="var(--font-mono)">
+            {p.circuito}
+          </text>
+        </g>
+      );
+    case "interruptor":
+      return (
+        <g>
+          <circle cx={x} cy={y} r={0.08} fill={c} />
+          <text x={x + 0.12} y={y + 0.06} fontSize={0.17} fill={c} fontFamily="var(--font-mono)">
+            S
+          </text>
+        </g>
+      );
+    case "tug":
+      return <path d={`M${x} ${y - 0.14} L${x + 0.13} ${y + 0.09} L${x - 0.13} ${y + 0.09} Z`} fill="#141518" stroke={c} strokeWidth={0.03} />;
+    case "tue":
+      return (
+        <g>
+          <path d={`M${x} ${y - 0.16} L${x + 0.15} ${y + 0.1} L${x - 0.15} ${y + 0.1} Z`} fill={c} />
+          <text x={x + 0.2} y={y + 0.06} fontSize={0.17} fill={c} fontFamily="var(--font-mono)">
+            {p.label}
+          </text>
+        </g>
+      );
+    case "quadro":
+      return (
+        <g>
+          <rect x={x - 0.3} y={y - 0.13} width={0.6} height={0.26} fill={c} />
+          <text x={x} y={y + 0.07} fontSize={0.17} textAnchor="middle" fill="#141518" fontWeight={700} fontFamily="var(--font-mono)">
+            QD
+          </text>
+        </g>
+      );
+  }
 }
 
 export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
@@ -86,7 +120,8 @@ export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
   return (
     <g pointerEvents="none">
       {h.trechos.map((t, i) => (
-        <polyline
+        <motion.polyline
+          {...draw((t.tipo === "fria" ? 0 : 0.9) + (i % 12) * STAGGER.curto)}
           key={i}
           points={poly(t.pts, fy)}
           fill="none"
@@ -96,7 +131,17 @@ export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
           strokeLinejoin="round"
         />
       ))}
-      <rect x={r.x - 0.6} y={fy(r.y) - 0.6} width={1.2} height={1.2} fill="#141518" fillOpacity={0.6} stroke={w} strokeWidth={0.05} strokeDasharray="0.15 0.08" />
+      <rect
+        x={r.x - 0.6}
+        y={fy(r.y) - 0.6}
+        width={1.2}
+        height={1.2}
+        fill="#141518"
+        fillOpacity={0.6}
+        stroke={w}
+        strokeWidth={0.05}
+        strokeDasharray="0.15 0.08"
+      />
       <text x={r.x} y={fy(r.y) + 0.07} fontSize={0.2} textAnchor="middle" fill={w} fontFamily="var(--font-mono)">
         {r.litros} L
       </text>
@@ -108,18 +153,18 @@ export function PlumbingOverlay({ h, fy }: { h: ProjetoHidraulico; fy: Fy }) {
         REDE
       </text>
       {h.aparelhos.map((a, i) => (
-        <circle key={i} cx={a.x} cy={fy(a.y)} r={0.09} fill={w} stroke="#141518" strokeWidth={0.02} />
+        <motion.circle {...popIn(0.5 + i * STAGGER.curto)} key={i} cx={a.x} cy={fy(a.y)} r={0.09} fill={w} stroke="#141518" strokeWidth={0.02} />
       ))}
       {h.caixas.map((c, i) =>
         c.tipo === "CS" ? (
-          <circle key={i} cx={c.x} cy={fy(c.y)} r={0.15} fill="#141518" stroke={s} strokeWidth={0.04} />
+          <motion.circle {...popIn(1.4 + i * STAGGER.base)} key={i} cx={c.x} cy={fy(c.y)} r={0.15} fill="#141518" stroke={s} strokeWidth={0.04} />
         ) : (
-          <g key={i}>
+          <motion.g key={i} {...popIn(1.4 + i * STAGGER.base)}>
             <rect x={c.x - 0.25} y={fy(c.y) - 0.25} width={0.5} height={0.5} fill="#141518" stroke={s} strokeWidth={0.05} />
             <text x={c.x} y={fy(c.y) + 0.07} fontSize={0.18} textAnchor="middle" fill={s} fontFamily="var(--font-mono)">
               {c.label}
             </text>
-          </g>
+          </motion.g>
         ),
       )}
     </g>
@@ -159,8 +204,22 @@ export function ElectricalPanel({ e }: { e: ProjetoEletrico }) {
     <div className="space-y-4">
       <Legend
         items={[
-          [<><circle cx="11" cy="6" r="5" fill="none" stroke={c} /><path d="M7.5 2.5l7 7m0-7l-7 7" stroke={c} /></>, "Ponto de luz (teto)"],
-          [<><circle cx="8" cy="6" r="2.5" fill={c} /><text x="12" y="9" fontSize="8" fill={c}>S</text></>, "Interruptor"],
+          [
+            <>
+              <circle cx="11" cy="6" r="5" fill="none" stroke={c} />
+              <path d="M7.5 2.5l7 7m0-7l-7 7" stroke={c} />
+            </>,
+            "Ponto de luz (teto)",
+          ],
+          [
+            <>
+              <circle cx="8" cy="6" r="2.5" fill={c} />
+              <text x="12" y="9" fontSize="8" fill={c}>
+                S
+              </text>
+            </>,
+            "Interruptor",
+          ],
           [<path d="M11 2l4.5 8h-9z" fill="none" stroke={c} />, "Tomada de uso geral"],
           [<path d="M11 2l4.5 8h-9z" fill={c} />, "Tomada de uso específico"],
           [<rect x="3" y="3" width="16" height="6" fill={c} />, "Quadro de distribuição"],
@@ -250,8 +309,8 @@ export function PlumbingPanel({ h }: { h: ProjetoHidraulico }) {
         </table>
       </div>
       <p className="text-xs text-muted">
-        Esquema preliminar (NBR 5626 e NBR 8160 simplificadas): traçados ortogonais, quantidades com 10% de perdas. Caimentos, ventilação e água quente ficam para o
-        projeto executivo.
+        Esquema preliminar (NBR 5626 e NBR 8160 simplificadas): traçados ortogonais, quantidades com 10% de perdas. Caimentos, ventilação e água quente ficam
+        para o projeto executivo.
       </p>
     </div>
   );
