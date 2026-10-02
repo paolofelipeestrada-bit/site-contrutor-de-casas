@@ -1,14 +1,17 @@
 import { Canvas } from "@react-three/fiber";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Box, Eye, Footprints, House, Map as MapIcon, Moon, Pencil, Ruler, Sofa, X } from "lucide-react";
+import { ArrowLeft, Box, Check, Eye, Footprints, House, Map as MapIcon, Moon, MousePointer2, Pencil, Ruler, Sofa, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EASE } from "../../lib/motion";
+import { carregarPrefs, salvarPrefs, type PrefsControle } from "../../lib/three/controle";
+import { mobiliaAutomatica, obstaculosDosMoveis } from "../../lib/three/mobilia";
 import { medidasDoComodo, planTo3D, type Cobertura, type Room3D } from "../../lib/three/model";
 import type { Brief, Plan } from "../../lib/types";
 import { Symbol } from "../Logo";
 import { Cena, P, type Jogador, type Modo } from "./Cena";
 import { Joystick } from "./Joystick";
 import { Andar, Orbita, type Eixos } from "./Navegacao";
+import { PainelControles } from "./PainelControles";
 import { CamadaDeRotulos, Projetor, rotulosDaCena } from "./Rotulos";
 
 /**
@@ -23,6 +26,16 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
   const [fase, setFase] = useState<"obra" | "pronta" | "livre">("obra");
   const [aqui, setAqui] = useState<Room3D | null>(null);
   const [travado, setTravado] = useState(false);
+  const [mobilia, setMobilia] = useState(true);
+  const [painel, setPainel] = useState(false);
+  // preferências do mouse: estado para a interface, ref para a câmera ler a cada quadro sem remontar
+  const [prefs, setPrefsEstado] = useState<PrefsControle>(carregarPrefs);
+  const prefsRef = useRef(prefs);
+  const setPrefs = (p: PrefsControle) => {
+    prefsRef.current = p;
+    setPrefsEstado(p);
+    salvarPrefs(p);
+  };
   const jogador = useRef<Jogador>({ x: 0, y: 0, ativo: false });
   const joystick = useRef<Eixos>({ x: 0, y: 0 });
   const inicioObra = useRef<number | null>(null);
@@ -30,6 +43,9 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
 
   // a planta 2D é a fonte de verdade: qualquer mudança nela refaz o modelo
   const model = useMemo(() => planTo3D(plan, brief, cobertura), [plan, brief, cobertura]);
+  // planta → modelo 3D → móveis: a mobília também sai da planta (tipo e medidas de cada cômodo)
+  const moveis = useMemo(() => mobiliaAutomatica(plan, brief), [plan, brief]);
+  const obstaculosMoveis = useMemo(() => (mobilia ? obstaculosDosMoveis(moveis) : []), [moveis, mobilia]);
   const sel = model.comodos.find((r) => r.id === selecionado) ?? null;
   const rotulos = useMemo(() => rotulosDaCena(model, medidas, modo), [model, medidas, modo]);
   const elsRotulos = useRef<Record<string, HTMLElement | null>>({});
@@ -93,9 +109,14 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
           jogador={jogador}
           inicioObra={inicioObra}
           sombras={!toque}
+          moveis={mobilia ? moveis : []}
         />
         <Projetor rotulos={rotulos} els={elsRotulos} />
-        {modo === "andar" ? <Andar model={model} jogador={jogador} joystick={joystick} onComodo={onComodo} /> : <Orbita model={model} modo={modo} />}
+        {modo === "andar" ? (
+          <Andar model={model} jogador={jogador} joystick={joystick} onComodo={onComodo} prefs={prefsRef} obstaculosExtra={obstaculosMoveis} />
+        ) : (
+          <Orbita model={model} modo={modo} sensibilidade={prefs.sensibilidade} />
+        )}
       </Canvas>
       <CamadaDeRotulos rotulos={rotulos} els={elsRotulos} />
 
@@ -120,11 +141,21 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
           <button type="button" className={`${btn} ${inativo} cursor-not-allowed opacity-45`} disabled title="Próxima etapa: dia/noite e luzes internas">
             <Moon className="size-4" /> Dia/Noite <span className="text-[10px] uppercase">em breve</span>
           </button>
-          <button type="button" className={`${btn} ${inativo} cursor-not-allowed opacity-45`} disabled title="Próxima etapa: móveis no 3D">
-            <Sofa className="size-4" /> Móveis <span className="text-[10px] uppercase">em breve</span>
+          <button
+            type="button"
+            className={`${btn} ${mobilia ? "bg-white/10 text-ink" : inativo}`}
+            aria-pressed={mobilia}
+            onClick={() => setMobilia(!mobilia)}
+            title="Móveis gerados a partir do tipo e das medidas de cada cômodo"
+          >
+            <Sofa className="size-4" /> Mobília: {mobilia ? "Automática" : "desligada"}
+            {mobilia && <Check className="size-3.5 text-ok" />}
           </button>
           <button type="button" className={`${btn} ${medidas ? "bg-primary text-ink" : inativo}`} aria-pressed={medidas} onClick={() => setMedidas(!medidas)}>
             <Ruler className="size-4" /> Medidas
+          </button>
+          <button type="button" className={`${btn} ${painel ? "bg-white/10 text-ink" : inativo}`} aria-expanded={painel} onClick={() => setPainel(!painel)}>
+            <MousePointer2 className="size-4" /> Controles
           </button>
         </nav>
         <button
@@ -143,6 +174,8 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
           <X className="size-5" />
         </button>
       </header>
+
+      <AnimatePresence>{painel && <PainelControles prefs={prefs} onChange={setPrefs} onFechar={() => setPainel(false)} />}</AnimatePresence>
 
       {/* Onde estou (modo andar) */}
       <AnimatePresence>

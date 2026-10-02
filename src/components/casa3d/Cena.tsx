@@ -1,7 +1,9 @@
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
+import type { Movel3D } from "../../lib/three/mobilia";
 import type { Door3D, Model3D, Room3D, Telhado, Wall3D, Window3D } from "../../lib/three/model";
+import { Mobilia } from "./Moveis";
 
 /**
  * A casa em Three.js. Só desenha o que vem do Model3D (que vem da planta 2D): nada é calculado aqui além de
@@ -53,11 +55,13 @@ interface Props {
   /** instante (s do relógio do Three) em que a construção começou */
   inicioObra: MutableRefObject<number | null>;
   sombras: boolean;
+  /** mobília automática (vazia = sem móveis) */
+  moveis?: Movel3D[];
 }
 
 const DUR_OBRA = 2.2; // s para todas as paredes subirem
 
-export function Cena({ model, modo, medidas, selecionado, onSelecionar, jogador, inicioObra, sombras }: Props) {
+export function Cena({ model, modo, medidas, selecionado, onSelecionar, jogador, inicioObra, sombras, moveis = [] }: Props) {
   const { casa, lote } = model;
   const cx = casa.x + casa.w / 2;
   const cy = casa.y + casa.h / 2;
@@ -80,6 +84,7 @@ export function Cena({ model, modo, medidas, selecionado, onSelecionar, jogador,
         {model.janelas.map((j) => (
           <Janela key={j.id} j={j} />
         ))}
+        <Mobilia moveis={moveis} />
         {model.pilares.map((p, i) => (
           <mesh key={i} position={P(p.x, p.y, p.altura / 2)} castShadow receiveShadow>
             <boxGeometry args={[p.lado, p.altura, p.lado]} />

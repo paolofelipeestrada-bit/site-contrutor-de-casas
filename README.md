@@ -50,7 +50,11 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Texto enviado à IA | `server/interpret.ts` (`SYSTEM`) |
 | 3D: pé-direito, espessura das paredes, altura de portas, janelas, portão, laje e telhado | `src/lib/three/model.ts` (objeto `CASA3D`) |
 | 3D: cores e acabamentos (paredes, pisos, telhado, vidro, rua) | `src/components/casa3d/Cena.tsx` (objeto `CORES`) |
-| 3D: velocidade de andar, sensibilidade do mouse/dedo | `src/components/casa3d/Navegacao.tsx` (objeto `ANDAR`) |
+| 3D: sensibilidade do mouse (`mouseSensitivity = 0.0025`), suavização, limite para olhar para cima/baixo | `src/lib/three/controle.ts` (objeto `CONTROLE`) |
+| 3D: velocidade de andar e "largura" da pessoa | `src/components/casa3d/Navegacao.tsx` (objeto `ANDAR`) |
+| 3D: tamanhos-padrão dos móveis e espaço livre na frente de cada um | `src/lib/three/mobilia.ts` (objeto `MOVEIS`) |
+| 3D: onde cada móvel vai em cada tipo de cômodo | `src/lib/three/mobilia.ts` (funções `quarto`, `sala`, `cozinha`, `banheiro`…) |
+| 3D: aparência dos móveis (formas e cores) | `src/components/casa3d/Moveis.tsx` (componentes `Sofa`, `Cama`… e `CORES_MOVEIS`) |
 | 3D: botões e telas ("Construindo sua casa…", medidas do cômodo) | `src/components/casa3d/Casa3D.tsx` |
 
 ## Arquitetura
@@ -65,6 +69,8 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Hidráulica | `src/lib/plan/plumbing.ts` | Hidrômetro → caixa d'água → ramais; esgoto por caixa sifonada até caixas externas (CI/CG) e coletor até a rede; lista de materiais. |
 | Desenho | `src/components/PlanViewer.tsx`, `TechLayers.tsx` | SVG em metros; camadas técnicas por cima da mesma planta. |
 | Casa 3D | `src/lib/three/model.ts`, `src/components/casa3d/` | `planTo3D(plan)` extrude a planta: cada cômodo vira piso com as mesmas medidas; as bordas dos cômodos fechados viram paredes (internas quando há cômodo dos dois lados); cada porta e janela da planta recorta a parede no mesmo lugar (verga e peitoril acima/abaixo). Cobertura: laje com platibanda ou telhado de 4 águas. O Three.js só desenha esse modelo — a IA não decide nada no 3D. Carregado sob demanda (só baixa ao clicar em "Entrar na casa 3D"). |
+| Móveis 3D | `src/lib/three/mobilia.ts`, `src/components/casa3d/Moveis.tsx` | `mobiliaAutomatica(plan)` escolhe os móveis pelo tipo de cada cômodo e os encaixa por regras: dentro do vão livre (não atravessam parede), fora da área das portas, sem tapar janela com móvel alto, sem sobreposição, com espaço de uso na frente (abrir o guarda-roupa, sentar no vaso) e corredor sempre vazio. Se um móvel não couber com folga, ele fica de fora. Os móveis bloqueiam a passagem no modo Andar. |
+| Câmera | `src/lib/three/controle.ts`, `src/components/casa3d/Navegacao.tsx`, `PainelControles.tsx` | Olhar com o cursor travado, segurando o botão esquerdo ou arrastando o dedo; suavização exponencial (≈95% em 100 ms); limite vertical de 83°; painel "Controles" com sensibilidade, suavização e inverter eixo (salvo no navegador). |
 | Aprendizado | `src/lib/learning/engine.ts` | Edições, avaliações e escolha de opção ajustam as próximas plantas; fica no navegador (`localStorage`). |
 
 Para depurar o layout: `TXT="terreno 8 por 20, 70 m2, 2 quartos" OUT=planta.svg npm run debug:layout`.
@@ -74,7 +80,7 @@ Para depurar o layout: `TXT="terreno 8 por 20, 70 m2, 2 quartos" OUT=planta.svg 
 1. Aprendizado coletivo num banco de dados (as funções já são puras).
 2. Água quente, ventilação de esgoto e caimentos na hidráulica; DR e padrão de entrada na elétrica.
 3. Exportar PDF/DXF com cotas e as tabelas.
-4. 3D — próximas etapas: móveis (a partir de `furniture.ts`), dia/noite com luzes internas, materiais e personalização.
+4. 3D — próximas etapas: dia/noite com luzes internas, esconder/trocar/editar móveis, materiais e personalização.
 
 ## Imagens
 

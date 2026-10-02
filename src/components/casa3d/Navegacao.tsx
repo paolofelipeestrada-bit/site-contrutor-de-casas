@@ -2,17 +2,16 @@ import { CameraControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
+import { girar, suavizar, type Fonte, type Olhar, type PrefsControle } from "../../lib/three/controle";
 import { comodoEm, type Model3D, type Room3D } from "../../lib/three/model";
+import type { Rect } from "../../lib/types";
 import type { Jogador, Modo } from "./Cena";
 
-/** Ajustes da navegação. */
+/** Ajustes da navegação. A sensibilidade do mouse fica em src/lib/three/controle.ts (CONTROLE.mouseSensitivity). */
 export const ANDAR = {
   velocidade: 1.5, // m/s caminhando
   correndo: 3.2, // m/s com Shift
   raio: 0.22, // "largura" da pessoa para não atravessar paredes
-  sensibilidadeMouse: 0.0022,
-  sensibilidadeToque: 0.0055,
-  limiteOlhar: 1.35, // rad para cima/baixo
 };
 
 /** Joystick virtual (celular): x = lado, y = frente, de -1 a 1. */
@@ -22,7 +21,7 @@ export interface Eixos {
 }
 
 /** Câmera em órbita para "Ver exterior" e "Por dentro" (sem cobertura). */
-export function Orbita({ model, modo }: { model: Model3D; modo: Exclude<Modo, "andar"> }) {
+export function Orbita({ model, modo, sensibilidade = 1 }: { model: Model3D; modo: Exclude<Modo, "andar">; sensibilidade?: number }) {
   const ref = useRef<CameraControls>(null);
   const { casa } = model;
   const cx = casa.x + casa.w / 2;
@@ -37,7 +36,17 @@ export function Orbita({ model, modo }: { model: Model3D; modo: Exclude<Modo, "a
   }, [modo, cx, cy, S, casa.y]);
 
   return (
-    <CameraControls ref={ref} makeDefault minDistance={2} maxDistance={S * 3} maxPolarAngle={Math.PI / 2 - 0.04} smoothTime={0.6} draggingSmoothTime={0.15} />
+    <CameraControls
+      ref={ref}
+      makeDefault
+      minDistance={2}
+      maxDistance={S * 3}
+      maxPolarAngle={Math.PI / 2 - 0.04}
+      smoothTime={0.6}
+      draggingSmoothTime={0.12}
+      azimuthRotateSpeed={sensibilidade}
+      polarRotateSpeed={sensibilidade}
+    />
   );
 }
 
@@ -51,15 +60,23 @@ export function Andar({
   jogador,
   joystick,
   onComodo,
+  prefs,
+  obstaculosExtra = [],
 }: {
   model: Model3D;
   jogador: MutableRefObject<Jogador>;
   joystick: MutableRefObject<Eixos>;
   onComodo: (r: Room3D | null) => void;
+  /** preferências do painel "Controles" (lidas a cada quadro, sem remontar a câmera) */
+  prefs: MutableRefObject<PrefsControle>;
+  /** móveis que bloqueiam a passagem */
+  obstaculosExtra?: Rect[];
 }) {
   const { camera, gl } = useThree();
   const teclas = useRef(new Set<string>());
-  const olhar = useRef({ yaw: 0, pitch: 0 });
+  // olhar = para onde o mouse mandou; vista = para onde a câmera aponta agora (segue o olhar com suavização)
+  const olhar = useRef<Olhar>({ yaw: 0, pitch: 0 });
+  const vista = useRef<Olhar>({ yaw: 0, pitch: 0 });
   const pos = useRef({ x: model.inicio.x, y: model.inicio.y });
   const chegada = useRef({ t: 0, de: camera.position.clone(), deQ: camera.quaternion.clone() });
   const ultimoComodo = useRef<string | null>(null);
@@ -69,6 +86,7 @@ export function Andar({
   useEffect(() => {
     pos.current = { x: model.inicio.x, y: model.inicio.y };
     olhar.current = { yaw: Math.atan2(-model.inicio.olhando.x, model.inicio.olhando.y), pitch: 0 };
+    vista.current = { ...olhar.current };
     chegada.current = { t: 0, de: camera.position.clone(), deQ: camera.quaternion.clone() };
     camera.rotation.order = "YXZ";
     jogador.current = { ...pos.current, ativo: true };
@@ -102,23 +120,20 @@ export function Andar({
     };
   }, []);
 
-  // olhar: cursor travado (computador) ou arrastar (mouse e dedo)
+  // olhar: cursor travado (computador), segurar o botão esquerdo e arrastar, ou arrastar o dedo
   useEffect(() => {
     const el = gl.domElement;
     let arrasto: { id: number; x: number; y: number } | null = null;
-    const girar = (dx: number, dy: number, k: number) => {
-      olhar.current.yaw -= dx * k;
-      olhar.current.pitch = THREE.MathUtils.clamp(olhar.current.pitch - dy * k, -ANDAR.limiteOlhar, ANDAR.limiteOlhar);
-    };
+    const mover = (dx: number, dy: number, fonte: Fonte) => (olhar.current = girar(olhar.current, dx, dy, fonte, prefs.current));
     const down = (e: PointerEvent) => {
       if (document.pointerLockElement === el) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       arrasto = { id: e.pointerId, x: e.clientX, y: e.clientY };
     };
     const move = (e: PointerEvent) => {
-      if (document.pointerLockElement === el) return girar(e.movementX, e.movementY, ANDAR.sensibilidadeMouse);
+      if (document.pointerLockElement === el) return void mover(e.movementX, e.movementY, "travado");
       if (!arrasto || arrasto.id !== e.pointerId) return;
-      const k = e.pointerType === "touch" ? ANDAR.sensibilidadeToque : ANDAR.sensibilidadeMouse * 1.6;
-      girar(e.clientX - arrasto.x, e.clientY - arrasto.y, k);
+      mover(e.clientX - arrasto.x, e.clientY - arrasto.y, e.pointerType === "touch" ? "toque" : "arrasto");
       arrasto = { id: e.pointerId, x: e.clientX, y: e.clientY };
     };
     const up = (e: PointerEvent) => {
@@ -152,16 +167,18 @@ export function Andar({
       el.removeEventListener("pointerup", clickUp);
       window.removeEventListener("pointercancel", up);
     };
-  }, [gl]);
+  }, [gl, prefs]);
 
   const bloqueado = (x: number, y: number) => {
     const r = ANDAR.raio;
-    return model.obstaculos.some((o) => x > o.x - r && x < o.x + o.w + r && y > o.y - r && y < o.y + o.h + r);
+    const dentro = (o: Rect) => x > o.x - r && x < o.x + o.w + r && y > o.y - r && y < o.y + o.h + r;
+    return model.obstaculos.some(dentro) || obstaculosExtra.some(dentro);
   };
 
   useFrame((_, dtBruto) => {
     const dt = Math.min(dtBruto, 0.1);
-    const { yaw, pitch } = olhar.current;
+    vista.current = suavizar(vista.current, olhar.current, dt, prefs.current);
+    const { yaw, pitch } = vista.current;
 
     // movimento (na planta): frente = (-sin yaw, cos yaw), direita = (cos yaw, sin yaw)
     const k = teclas.current;
