@@ -76,7 +76,7 @@ describe("mobília 3D automática", () => {
 
       it("móveis não se sobrepõem (considerando a altura: TV sobre o rack e armário sobre a bancada podem)", () => {
         for (const r of plan.rooms) {
-          const ms = porComodo(r.id);
+          const ms = porComodo(r.id).filter((m) => m.tipo !== "tapete"); // o tapete fica por baixo
           for (let i = 0; i < ms.length; i++)
             for (let j = i + 1; j < ms.length; j++) {
               const a = ms[i];
@@ -136,7 +136,7 @@ describe("mobília 3D automática", () => {
           // móveis só do próprio tipo de cômodo
           if (r.tipo === "garagem") expect([...tipos].every((t) => t === "carro")).toBe(true);
           if (r.tipo.startsWith("banheiro") || r.tipo === "lavabo")
-            expect([...tipos].every((t) => ["vaso", "lavatorio", "espelho", "box"].includes(t))).toBe(true);
+            expect([...tipos].every((t) => ["vaso", "lavatorio", "espelho", "box", "toalheiro", "cesto"].includes(t))).toBe(true);
         }
       });
 

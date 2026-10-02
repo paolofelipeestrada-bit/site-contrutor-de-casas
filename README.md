@@ -54,7 +54,9 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | 3D: velocidade de andar e "largura" da pessoa | `src/components/casa3d/Navegacao.tsx` (objeto `ANDAR`) |
 | 3D: tamanhos-padrão dos móveis e espaço livre na frente de cada um | `src/lib/three/mobilia.ts` (objeto `MOVEIS`) |
 | 3D: onde cada móvel vai em cada tipo de cômodo | `src/lib/three/mobilia.ts` (funções `quarto`, `sala`, `cozinha`, `banheiro`…) |
-| 3D: aparência dos móveis (formas e cores) | `src/components/casa3d/Moveis.tsx` (componentes `Sofa`, `Cama`… e `CORES_MOVEIS`) |
+| 3D: aparência dos móveis padrão (formas e cores) | `src/components/casa3d/Moveis.tsx` (componentes `Sofa`, `Cama`…) e `primitivas.tsx` (`CORES_MOVEIS`) |
+| 3D: catálogo de modelos (nome, tipo e estilos em que combina) | `src/lib/three/catalogo.ts` (lista `CATALOGO`) |
+| 3D: desenho de cada modelo do catálogo | `src/components/casa3d/Modelos.tsx` (mapa `MODELOS`, mesmo id do catálogo) |
 | 3D: botões e telas ("Construindo sua casa…", medidas do cômodo) | `src/components/casa3d/Casa3D.tsx` |
 
 ## Arquitetura
@@ -70,6 +72,7 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Desenho | `src/components/PlanViewer.tsx`, `TechLayers.tsx` | SVG em metros; camadas técnicas por cima da mesma planta. |
 | Casa 3D | `src/lib/three/model.ts`, `src/components/casa3d/` | `planTo3D(plan)` extrude a planta: cada cômodo vira piso com as mesmas medidas; as bordas dos cômodos fechados viram paredes (internas quando há cômodo dos dois lados); cada porta e janela da planta recorta a parede no mesmo lugar (verga e peitoril acima/abaixo). Cobertura: laje com platibanda ou telhado de 4 águas. O Three.js só desenha esse modelo — a IA não decide nada no 3D. Carregado sob demanda (só baixa ao clicar em "Entrar na casa 3D"). |
 | Móveis 3D | `src/lib/three/mobilia.ts`, `src/components/casa3d/Moveis.tsx` | `mobiliaAutomatica(plan)` escolhe os móveis pelo tipo de cada cômodo e os encaixa por regras: dentro do vão livre (não atravessam parede), fora da área das portas, sem tapar janela com móvel alto, sem sobreposição, com espaço de uso na frente (abrir o guarda-roupa, sentar no vaso) e corredor sempre vazio. Se um móvel não couber com folga, ele fica de fora. Os móveis bloqueiam a passagem no modo Andar. |
+| Catálogo de móveis | `src/lib/three/catalogo.ts`, `src/components/casa3d/Modelos.tsx` | 164 modelos (135 novos): variações de cada tipo (sofá chesterfield, retrô, modular, futon…; cama box baú, plataforma, de ferro…) e complementos (tapetes, plantas, luminárias, quadros, aparador, cômoda, coifa, micro-ondas, banquetas, churrasqueira, espreguiçadeira…). O modelo de cada peça é sorteado entre os que combinam com o estilo do briefing, de forma estável; "Variar" sorteia outra combinação sem mudar as posições. Todas as variações de um tipo ocupam a mesma área, então as regras de encaixe continuam valendo. |
 | Câmera | `src/lib/three/controle.ts`, `src/components/casa3d/Navegacao.tsx`, `PainelControles.tsx` | Olhar com o cursor travado, segurando o botão esquerdo ou arrastando o dedo; suavização exponencial (≈95% em 100 ms); limite vertical de 83°; painel "Controles" com sensibilidade, suavização e inverter eixo (salvo no navegador). |
 | Aprendizado | `src/lib/learning/engine.ts` | Edições, avaliações e escolha de opção ajustam as próximas plantas; fica no navegador (`localStorage`). |
 

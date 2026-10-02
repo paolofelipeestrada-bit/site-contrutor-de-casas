@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Box, Check, Eye, Footprints, House, Map as MapIcon, Moon, MousePointer2, Pencil, Ruler, Sofa, X } from "lucide-react";
+import { ArrowLeft, Box, Check, Eye, Footprints, House, Map as MapIcon, Moon, MousePointer2, Pencil, Ruler, Shuffle, Sofa, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EASE } from "../../lib/motion";
 import { carregarPrefs, salvarPrefs, type PrefsControle } from "../../lib/three/controle";
@@ -27,6 +27,8 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
   const [aqui, setAqui] = useState<Room3D | null>(null);
   const [travado, setTravado] = useState(false);
   const [mobilia, setMobilia] = useState(true);
+  // cada clique em "Outra combinação" sorteia outros modelos do catálogo (as posições não mudam)
+  const [variacao, setVariacao] = useState(0);
   const [painel, setPainel] = useState(false);
   // preferências do mouse: estado para a interface, ref para a câmera ler a cada quadro sem remontar
   const [prefs, setPrefsEstado] = useState<PrefsControle>(carregarPrefs);
@@ -44,7 +46,7 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
   // a planta 2D é a fonte de verdade: qualquer mudança nela refaz o modelo
   const model = useMemo(() => planTo3D(plan, brief, cobertura), [plan, brief, cobertura]);
   // planta → modelo 3D → móveis: a mobília também sai da planta (tipo e medidas de cada cômodo)
-  const moveis = useMemo(() => mobiliaAutomatica(plan, brief), [plan, brief]);
+  const moveis = useMemo(() => mobiliaAutomatica(plan, brief, { variacao }), [plan, brief, variacao]);
   const obstaculosMoveis = useMemo(() => (mobilia ? obstaculosDosMoveis(moveis) : []), [moveis, mobilia]);
   const sel = model.comodos.find((r) => r.id === selecionado) ?? null;
   const rotulos = useMemo(() => rotulosDaCena(model, medidas, modo), [model, medidas, modo]);
@@ -139,7 +141,7 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
             </button>
           )}
           <button type="button" className={`${btn} ${inativo} cursor-not-allowed opacity-45`} disabled title="Próxima etapa: dia/noite e luzes internas">
-            <Moon className="size-4" /> Dia/Noite <span className="text-[10px] uppercase">em breve</span>
+            <Moon className="size-4" /> Dia/Noite
           </button>
           <button
             type="button"
@@ -148,9 +150,20 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
             onClick={() => setMobilia(!mobilia)}
             title="Móveis gerados a partir do tipo e das medidas de cada cômodo"
           >
-            <Sofa className="size-4" /> Mobília: {mobilia ? "Automática" : "desligada"}
+            <Sofa className="size-4" /> Mobília{mobilia ? "" : ": desligada"}
             {mobilia && <Check className="size-3.5 text-ok" />}
           </button>
+          {mobilia && (
+            <button
+              type="button"
+              className={`${btn} ${inativo}`}
+              onClick={() => setVariacao((v) => v + 1)}
+              title={`Outra combinação de móveis do catálogo (estilo ${brief?.estilo ?? "da casa"})`}
+              aria-label="Outra combinação de móveis"
+            >
+              <Shuffle className="size-4" /> Variar
+            </button>
+          )}
           <button type="button" className={`${btn} ${medidas ? "bg-primary text-ink" : inativo}`} aria-pressed={medidas} onClick={() => setMedidas(!medidas)}>
             <Ruler className="size-4" /> Medidas
           </button>

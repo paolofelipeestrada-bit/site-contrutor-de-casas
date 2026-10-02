@@ -1,5 +1,6 @@
+import { escolherModelo, type TipoMovel } from "./catalogo";
 import { CASA3D } from "./model";
-import type { Brief, Opening, PlacedRoom, Plan, Rect, Side } from "../types";
+import type { Brief, Opening, PlacedRoom, Plan, Rect, Side, Style } from "../types";
 
 /**
  * MOBÍLIA AUTOMÁTICA (geometria pura, sem Three.js).
@@ -13,36 +14,7 @@ import type { Brief, Opening, PlacedRoom, Plan, Rect, Side } from "../types";
  * Se um móvel não couber respeitando tudo isso, ele simplesmente não é colocado.
  */
 
-export type TipoMovel =
-  | "sofa"
-  | "poltrona"
-  | "mesaCentro"
-  | "rack"
-  | "tv"
-  | "mesa"
-  | "mesaRedonda"
-  | "cadeira"
-  | "bancada"
-  | "armarioSuperior"
-  | "pia"
-  | "fogao"
-  | "geladeira"
-  | "ilha"
-  | "cama"
-  | "criadoMudo"
-  | "guardaRoupa"
-  | "escrivaninha"
-  | "cadeiraEscritorio"
-  | "estante"
-  | "vaso"
-  | "lavatorio"
-  | "espelho"
-  | "box"
-  | "maquina"
-  | "tanque"
-  | "armario"
-  | "carro"
-  | "sofaExterno";
+export type { TipoMovel } from "./catalogo";
 
 export interface Movel3D {
   id: string;
@@ -63,6 +35,10 @@ export interface Movel3D {
   caixa: Rect;
   /** detalhe paramétrico: casal/solteiro, lugares… */
   variante?: string;
+  /** modelo do catálogo (ex.: "sofa:chesterfield"), escolhido pelo estilo da casa */
+  modelo: string;
+  /** acabamento do armário embaixo (pia, fogão e ilha usam o mesmo da bancada do cômodo) */
+  base?: string;
 }
 
 /** Medidas-padrão dos móveis (m). Para mudar o tamanho de um móvel em toda casa, edite aqui. */
@@ -96,6 +72,20 @@ export const MOVEIS = {
   mesaRedonda: { d: 0.9, a: 0.75 },
   sofaExterno: { l: 1.8, p: 0.8, a: 0.75 },
   carro: { a: 1.45 },
+  // decoração e complementos
+  planta: { l: 0.45, p: 0.45, a: 1.3 },
+  luminaria: { l: 0.35, p: 0.35, a: 1.6 },
+  quadro: { p: 0.04, a: 0.6, elev: 1.35 },
+  aparador: { l: 1.2, p: 0.4, a: 0.8 },
+  puff: { l: 0.45, p: 0.45, a: 0.42 },
+  comoda: { l: 1.0, p: 0.5, a: 0.85 },
+  banqueta: { l: 0.38, p: 0.38, a: 0.75 },
+  coifa: { p: 0.5, a: 1.1, elev: 1.65 },
+  microondas: { l: 0.5, p: 0.38, a: 0.3 },
+  toalheiro: { l: 0.6, p: 0.1, a: 0.5, elev: 1.0 },
+  cesto: { l: 0.4, p: 0.4, a: 0.55 },
+  espreguicadeira: { l: 0.7, p: 1.9, a: 0.4 },
+  churrasqueira: { l: 0.9, p: 0.6, a: 2.2 },
   /** espaço livre na frente de cada móvel para usá-lo */
   uso: { cama: 0.6, ladoCama: 0.5, guardaRoupa: 0.5, vaso: 0.5, lavatorio: 0.55, bancada: 0.9, sofa: 0.35, maquina: 0.6, portaCarro: 0.55 },
 };
@@ -171,6 +161,9 @@ interface Janela {
 
 interface Ctx {
   room: PlacedRoom;
+  /** estilo da casa (briefing) e semente estável para sortear os modelos do catálogo */
+  estilo?: Style;
+  semente: string;
   /** vão livre do cômodo (já descontando meia parede e uma pequena folga) */
   A: Caixa;
   portas: Caixa[];
@@ -203,6 +196,8 @@ interface Item {
   /** vidro/peça baixa que pode ficar sob janela */
   ignoraJanela?: boolean;
   variante?: string;
+  /** tapete: fica no chão, por baixo dos outros móveis (só precisa estar no cômodo e longe das portas) */
+  piso?: boolean;
 }
 
 const LADOS: Side[] = ["top", "right", "bottom", "left"];
@@ -217,7 +212,7 @@ function ladoDe(o: Opening, r: Rect): Side | null {
   return null;
 }
 
-function contexto(room: PlacedRoom, plan: Plan): Ctx {
+function contexto(room: PlacedRoom, plan: Plan, estilo?: Style, semente = ""): Ctx {
   const fechado = room.zone !== "outdoor";
   // lado com parede: cômodo fechado sempre; varanda só onde encosta num cômodo fechado
   const paredes = Object.fromEntries(
@@ -261,7 +256,7 @@ function contexto(room: PlacedRoom, plan: Plan): Ctx {
     const u0 = (vert ? a - room.y : a - room.x) - 0.15;
     portas.push(q.caixa(u0, 0, b - a + 0.3, prof));
   }
-  return { room, A, portas, janelas, paredes, moveis: [], usos: [], n: 0 };
+  return { room, A, portas, janelas, paredes, moveis: [], usos: [], n: 0, estilo, semente };
 }
 
 /** Confere um item contra todas as regras do cômodo (e contra os outros itens do mesmo grupo). */
@@ -270,8 +265,12 @@ function valido(ctx: Ctx, it: Item, extras: { caixa: Caixa; z0: number; z1: numb
   const z0 = it.elevacao ?? 0;
   const z1 = z0 + it.altura;
   if (!dentro(ctx.A, caixa)) return null;
+  if (it.piso) return ctx.portas.some((p) => sobrepoe(p, caixa)) ? null : { caixa, usos: [] };
   if (z0 < 2.0 && ctx.portas.some((p) => sobrepoe(p, caixa))) return null;
-  const ocupados = [...ctx.moveis.map((m) => ({ caixa: daRect(m.caixa), z0: m.elevacao, z1: m.elevacao + m.altura })), ...extras];
+  const ocupados = [
+    ...ctx.moveis.filter((m) => m.tipo !== "tapete").map((m) => ({ caixa: daRect(m.caixa), z0: m.elevacao, z1: m.elevacao + m.altura })),
+    ...extras,
+  ];
   if (ocupados.some((o) => sobrepoe(o.caixa, caixa) && o.z0 < z1 - EPS && z0 < o.z1 - EPS)) return null;
   const noChao = z0 < 1.0;
   if (noChao && [...ctx.usos, ...usosExtras].some((u) => sobrepoe(u, caixa))) return null;
@@ -293,6 +292,11 @@ function valido(ctx: Ctx, it: Item, extras: { caixa: Caixa; z0: number; z1: numb
   return { caixa, usos };
 }
 
+/** Em qual parede do vão livre a caixa está encostada (a primeira que encontrar). */
+function ladoEncostado(A: Caixa, c: Caixa): Side | null {
+  return LADOS.find((l) => encosta(A, c, l)) ?? null;
+}
+
 /** A caixa encosta no lado `lado` do vão livre? */
 function encosta(A: Caixa, c: Caixa, lado: Side) {
   const d = 0.06;
@@ -309,6 +313,14 @@ const voltar = (ctx: Ctx, s: ReturnType<typeof marcar>) => {
   ctx.usos.length = s.u;
   ctx.n = s.n;
 };
+
+/** Peças que devem ser iguais na casa toda (as cadeiras do jantar e da varanda, as banquetas). */
+const IGUAIS_NA_CASA = new Set<TipoMovel>(["cadeira", "banqueta"]);
+
+/** Modelo do catálogo para esta peça: pelo estilo da casa, estável por casa (e por cômodo). */
+function modeloDe(ctx: Ctx, tipo: TipoMovel) {
+  return escolherModelo(tipo, ctx.estilo, IGUAIS_NA_CASA.has(tipo) ? ctx.semente : `${ctx.semente}|${ctx.room.id}`);
+}
 
 /** Coloca um grupo de itens só se TODOS couberem (ex.: mesa + cadeiras). */
 function colocar(ctx: Ctx, itens: Item[]): Movel3D[] | null {
@@ -342,6 +354,8 @@ function colocar(ctx: Ctx, itens: Item[]): Movel3D[] | null {
       rotacao: it.rotacao ?? it.q.frente + (it.vira ? Math.PI : 0),
       caixa: paraRect(caixa),
       variante: it.variante,
+      modelo: modeloDe(ctx, it.tipo),
+      base: it.tipo === "pia" || it.tipo === "fogao" || it.tipo === "ilha" ? modeloDe(ctx, "bancada") : undefined,
     };
     return m;
   });
@@ -404,10 +418,15 @@ function quarto(ctx: Ctx, suite: boolean) {
     }
     for (const du of [cama.u - M.criado.l - 0.03, cama.u + cama.du + 0.03])
       colocar(ctx, [{ q: cama.q, tipo: "criadoMudo", u: du, v: 0, du: M.criado.l, dv: M.criado.p, altura: M.criado.a, naParede: true }]);
+    // tapete saindo por baixo da cama e quadro sobre a cabeceira
+    for (const f of [0.5, 0.3, 0.1]) if (tapete(ctx, cama.q, cama.u - f, cama.dv * 0.4, cama.du + 2 * f, cama.dv * 0.6 + 0.5)) break;
+    quadroNaParede(ctx, cama.q, cama.u + cama.du / 2, Math.min(1.2, cama.du), 1.3);
     return true;
   };
   // primeiro procura cama + guarda-roupa juntos; se o quarto não comporta os dois, fica a cama
   if (!cands.slice(0, 60).some((c) => montar(c, true))) cands.some((c) => montar(c, false)) || guardaRoupa(ctx, LADOS);
+  encostarSimples(ctx, "comoda", MOVEIS.comoda, 0.5);
+  plantas(ctx, 1);
   // escrivaninha no quarto, de preferência sob a janela
   if (!suite && (ctx.A.x1 - ctx.A.x0) * (ctx.A.y1 - ctx.A.y0) >= 8.5) {
     const lados = [...LADOS].sort((a, b) => Number(!ctx.janelas.some((j) => j.lado === a)) - Number(!ctx.janelas.some((j) => j.lado === b)));
@@ -488,8 +507,19 @@ function estar(ctx: Ctx, area: Caixa) {
             // poltrona ao lado da mesa de centro, virada para ela
             const P = M.poltrona;
             const vP = vMesa + M.mesaCentro.p / 2 - P.p / 2;
-            colocar(ctx, [{ q, tipo: "poltrona", u: u - P.l - 0.35, v: vP, du: P.l, dv: P.p, altura: P.a, rotacao: q.anguloU }]) ||
-              colocar(ctx, [{ q, tipo: "poltrona", u: u + sofaL + 0.35, v: vP, du: P.l, dv: P.p, altura: P.a, rotacao: q.anguloU + Math.PI }]);
+            const poltronaEsq = !!colocar(ctx, [{ q, tipo: "poltrona", u: u - P.l - 0.35, v: vP, du: P.l, dv: P.p, altura: P.a, rotacao: q.anguloU }]);
+            if (!poltronaEsq) colocar(ctx, [{ q, tipo: "poltrona", u: u + sofaL + 0.35, v: vP, du: P.l, dv: P.p, altura: P.a, rotacao: q.anguloU + Math.PI }]);
+            // tapete entre a TV e o sofá, entrando um pouco por baixo do sofá
+            for (const folga of [0.3, 0.15, 0]) if (tapete(ctx, q, u - folga, M.rack.p + 0.25, sofaL + 2 * folga, vSofa + 0.35 - (M.rack.p + 0.25))) break;
+            // puff do lado sem poltrona, luminária de piso na ponta do sofá
+            const PF = M.puff;
+            colocar(ctx, [{ q, tipo: "puff", u: poltronaEsq ? u + sofaL + 0.3 : u - PF.l - 0.3, v: vMesa + 0.05, du: PF.l, dv: PF.p, altura: PF.a }]);
+            const L = M.luminaria;
+            colocar(ctx, [{ q, tipo: "luminaria", u: u - L.l - 0.05, v: vSofa + 0.2, du: L.l, dv: L.p, altura: L.a }]) ||
+              colocar(ctx, [{ q, tipo: "luminaria", u: u + sofaL + 0.05, v: vSofa + 0.2, du: L.l, dv: L.p, altura: L.a }]);
+            // quadro na parede atrás do sofá (quando o sofá está encostado nela)
+            if (encostavel && Math.abs(vSofa + M.sofa.p - q.prof) < 0.02)
+              quadroNaParede(ctx, quadro(area, oposto(lado)), u + sofaL / 2, Math.min(1.4, sofaL - 0.4));
             return true;
           }
         }
@@ -497,6 +527,47 @@ function estar(ctx: Ctx, area: Caixa) {
     }
   }
   return false;
+}
+
+// ───────────────────────── Decoração ─────────────────────────
+
+/** Tapete (fica por baixo dos móveis, só precisa estar dentro do cômodo e fora da área das portas). */
+function tapete(ctx: Ctx, q: Quadro, u: number, v: number, du: number, dv: number) {
+  if (du < 0.8 || dv < 0.8) return false;
+  return !!colocar(ctx, [{ q, tipo: "tapete", u, v, du, dv, altura: 0.012, piso: true }]);
+}
+
+/** Quadro pendurado na parede, centrado em `uCentro` (do quadro da parede). */
+function quadroNaParede(ctx: Ctx, q: Quadro, uCentro: number, largura: number, elev: number = MOVEIS.quadro.elev) {
+  for (const l of [largura, largura * 0.75, 0.6]) {
+    if (l < 0.5) continue;
+    if (colocar(ctx, [{ q, tipo: "quadro", u: uCentro - l / 2, v: 0, du: l, dv: MOVEIS.quadro.p, altura: MOVEIS.quadro.a, elevacao: elev, naParede: true }]))
+      return true;
+  }
+  return false;
+}
+
+/** Plantas nos cantos livres do cômodo. */
+function plantas(ctx: Ctx, quantas: number) {
+  const P = MOVEIS.planta;
+  let n = 0;
+  for (const lado of LADOS) {
+    if (!ctx.paredes[lado]) continue;
+    const q = quadro(ctx.A, lado);
+    for (const u of [0, q.len - P.l]) {
+      if (n >= quantas) return;
+      if (colocar(ctx, [{ q, tipo: "planta", u, v: 0, du: P.l, dv: P.p, altura: P.a, naParede: true }])) n++;
+    }
+  }
+}
+
+/** Um móvel simples encostado numa parede livre, com espaço de uso na frente. */
+function encostarSimples(ctx: Ctx, tipo: TipoMovel, d: { l: number; p: number; a: number; elev?: number }, uso = 0.45, extra?: Partial<Item>) {
+  return encostar(
+    ctx,
+    (q, u) => [{ q, tipo, u, v: 0, du: d.l, dv: d.p, altura: d.a, elevacao: d.elev, naParede: true, usos: uso ? [[u, d.p, d.l, uso]] : [], ...extra }],
+    d.l,
+  );
 }
 
 /** O lado `lado` da sub-área coincide com a parede do cômodo? */
@@ -558,6 +629,7 @@ function sala(ctx: Ctx, plan: Plan) {
   if (!temJantar || Math.max(W, H) < 5.2) {
     estar(ctx, A);
     if (temJantar) jantar(ctx, A);
+    decorarSala(ctx);
     return;
   }
   // sala de estar e jantar: o jantar fica na ponta mais perto da cozinha
@@ -574,12 +646,29 @@ function sala(ctx: Ctx, plan: Plan) {
   const areaEstar: Caixa = aoLongoX ? (jantarNoFim ? { ...A, x1: corte } : { ...A, x0: corte }) : jantarNoFim ? { ...A, y1: corte } : { ...A, y0: corte };
   if (estar(ctx, areaEstar)) {
     jantar(ctx, areaJantar);
+    decorarSala(ctx);
     return;
   }
   // a divisão não comportou o estar: usa a sala inteira e encaixa a mesa no que sobrar
   voltar(ctx, s0);
   estar(ctx, A);
   jantar(ctx, A);
+  decorarSala(ctx);
+}
+
+/** Aparador (com quadro em cima) e plantas no que sobrar da sala. */
+function decorarSala(ctx: Ctx) {
+  const antes = ctx.moveis.length;
+  if (encostarSimples(ctx, "aparador", MOVEIS.aparador, 0.45)) {
+    const ap = ctx.moveis.slice(antes).find((m) => m.tipo === "aparador");
+    const lado = ap ? ladoEncostado(ctx.A, daRect(ap.caixa)) : null;
+    if (ap && lado) {
+      // quadro centrado sobre o aparador, na mesma parede
+      const centro = lado === "top" || lado === "bottom" ? ap.x - ctx.A.x0 : ap.y - ctx.A.y0;
+      quadroNaParede(ctx, quadro(ctx.A, lado), centro, 0.9, 1.3);
+    }
+  }
+  plantas(ctx, 2);
 }
 
 function cozinha(ctx: Ctx) {
@@ -683,10 +772,33 @@ function bancadaCozinha(ctx: Ctx, modo: "junto" | "separada" | "sem", tam: { pia
                   naParede: true,
                 },
               ]);
-          // ilha se sobrar um corredor de 1 m dos dois lados
+          // coifa sobre o fogão (onde não há armário aéreo)
+          colocar(ctx, [
+            { q, tipo: "coifa", u: uFogao, v: 0, du: M.fogao.l, dv: MOVEIS.coifa.p, altura: MOVEIS.coifa.a, elevacao: MOVEIS.coifa.elev, naParede: true },
+          ]);
+          // micro-ondas em cima de um trecho de bancada livre
+          const MO = MOVEIS.microondas;
+          for (const it of itens.filter((i) => i.tipo === "bancada" && i.du >= MO.l + 0.05)) {
+            if (
+              colocar(ctx, [
+                { q, tipo: "microondas", u: it.u + (it.du - MO.l) / 2, v: 0.05, du: MO.l, dv: MO.p, altura: MO.a, elevacao: M.bancada.a, naParede: true },
+              ])
+            )
+              break;
+          }
+          // ilha se sobrar um corredor de 1 m dos dois lados, com banquetas do outro lado
           if (q.prof >= M.bancada.p + 1.0 + M.ilha.p + 1.0 && b - a >= 2.2) {
             const L = Math.min(2.0, b - a - 0.4);
-            colocar(ctx, [{ q, tipo: "ilha", u: (a + b) / 2 - L / 2, v: M.bancada.p + 1.0, du: L, dv: M.ilha.p, altura: M.ilha.a }]);
+            const uI = (a + b) / 2 - L / 2;
+            const vI = M.bancada.p + 1.0;
+            if (colocar(ctx, [{ q, tipo: "ilha", u: uI, v: vI, du: L, dv: M.ilha.p, altura: M.ilha.a }])) {
+              const BQ = MOVEIS.banqueta;
+              const n = Math.max(1, Math.floor(L / 0.6));
+              for (let i = 0; i < n; i++)
+                colocar(ctx, [
+                  { q, tipo: "banqueta", u: uI + (L / n) * (i + 0.5) - BQ.l / 2, v: vI + M.ilha.p + 0.08, du: BQ.l, dv: BQ.p, altura: BQ.a, vira: true },
+                ]);
+            }
           }
           if (modo === "separada")
             encostar(ctx, (q2, u) => [{ q: q2, tipo: "geladeira", u, v: 0, du: G.l, dv: G.p, altura: G.a, naParede: true, usos: [[u, G.p, G.l, 0.6]] }], G.l);
@@ -814,6 +926,8 @@ function banheiro(ctx: Ctx) {
   if (melhor.box) colocar(ctx, [melhor.box]);
   vaso();
   lavatorio();
+  encostarSimples(ctx, "toalheiro", MOVEIS.toalheiro, 0);
+  if (!lavabo) encostarSimples(ctx, "cesto", MOVEIS.cesto, 0);
 }
 
 /** Procura uma parede e posição para um grupo; `extra` (opcional) é tentado logo depois, no mesmo lugar. */
@@ -908,6 +1022,7 @@ function lavanderia(ctx: Ctx) {
     ],
     M.armario.l,
   );
+  encostarSimples(ctx, "cesto", MOVEIS.cesto, 0);
 }
 
 function escritorio(ctx: Ctx) {
@@ -915,6 +1030,7 @@ function escritorio(ctx: Ctx) {
   escrivaninha(ctx, lados);
   const E = MOVEIS.estante;
   encostar(ctx, (q, u) => [{ q, tipo: "estante", u, v: 0, du: E.l, dv: E.p, altura: E.a, naParede: true, usos: [[u, E.p, E.l, 0.5]] }], E.l);
+  plantas(ctx, 1);
 }
 
 function garagem(ctx: Ctx, brief: Brief | null) {
@@ -938,6 +1054,34 @@ function garagem(ctx: Ctx, brief: Brief | null) {
       if (colocar(ctx, itens)) return;
     }
   }
+}
+
+/** Churrasqueira (área gourmet), espreguiçadeira e plantas. */
+function decorarVaranda(ctx: Ctx, gourmet: boolean) {
+  const M = MOVEIS;
+  if (gourmet) encostarSimples(ctx, "churrasqueira", M.churrasqueira, 0.8);
+  const E = M.espreguicadeira;
+  // deitada ao longo da parede: a frente aponta para o lado, a largura dela corre para dentro
+  encostar(
+    ctx,
+    (q, u) => [
+      {
+        q,
+        tipo: "espreguicadeira",
+        u,
+        v: 0,
+        du: E.p,
+        dv: E.l,
+        altura: E.a,
+        rotacao: q.anguloU,
+        naParede: true,
+        ignoraJanela: true,
+        usos: [[u, E.l, E.p, 0.4]],
+      },
+    ],
+    E.p,
+  );
+  plantas(ctx, 2);
 }
 
 function varanda(ctx: Ctx) {
@@ -1008,9 +1152,10 @@ function varanda(ctx: Ctx) {
         { q, tipo: "cadeira", u: cu - D / 2 - C.p + 0.05, v: cv - C.l / 2, du: C.p, dv: C.l, altura: C.a, rotacao: q.anguloU },
         { q, tipo: "cadeira", u: cu + D / 2 - 0.05, v: cv - C.l / 2, du: C.p, dv: C.l, altura: C.a, rotacao: q.anguloU + Math.PI },
       ];
-      if (colocar(ctx, itens)) return;
+      if (colocar(ctx, itens)) return decorarVaranda(ctx, gourmet);
     }
   }
+  decorarVaranda(ctx, gourmet);
 }
 
 function closet(ctx: Ctx) {
@@ -1020,12 +1165,17 @@ function closet(ctx: Ctx) {
 
 // ───────────────────────── Entrada principal ─────────────────────────
 
-/** Gera a mobília de todos os cômodos a partir da planta (fonte de verdade). */
-export function mobiliaAutomatica(plan: Plan, brief: Brief | null): Movel3D[] {
+/**
+ * Gera a mobília de todos os cômodos a partir da planta (fonte de verdade).
+ * `variacao` sorteia outra combinação de modelos do catálogo para a mesma casa (as posições seguem as mesmas regras).
+ */
+export function mobiliaAutomatica(plan: Plan, brief: Brief | null, opcoes: { variacao?: number } = {}): Movel3D[] {
   const out: Movel3D[] = [];
+  // a mesma planta sempre recebe os mesmos modelos; outra variação, outra combinação
+  const semente = `${plan.rooms.map((r) => `${r.id}:${r.w.toFixed(1)}x${r.h.toFixed(1)}`).join(",")}#${opcoes.variacao ?? 0}`;
   for (const room of plan.rooms) {
     if (room.tipo === "circulacao") continue; // corredor livre
-    const ctx = contexto(room, plan);
+    const ctx = contexto(room, plan, brief?.estilo, semente);
     switch (room.tipo) {
       case "quarto":
         quarto(ctx, false);
@@ -1038,6 +1188,7 @@ export function mobiliaAutomatica(plan: Plan, brief: Brief | null): Movel3D[] {
         break;
       case "jantar":
         jantar(ctx, ctx.A);
+        decorarSala(ctx);
         break;
       case "cozinha":
         cozinha(ctx);

@@ -1,6 +1,7 @@
 import { memo } from "react";
-import * as THREE from "three";
 import type { Movel3D, TipoMovel } from "../../lib/three/mobilia";
+import { MODELOS } from "./Modelos";
+import { B, C, Cil, mat, type Dim } from "./primitivas";
 import { P } from "./Cena";
 
 /**
@@ -10,74 +11,7 @@ import { P } from "./Cena";
  * Para trocar um móvel por um modelo mais detalhado no futuro, basta trocar o componente no mapa COMPONENTES.
  */
 
-/** Cores e acabamentos dos móveis. */
-export const CORES_MOVEIS = {
-  tecido: "#7D8C87",
-  almofada: "#97A5A0",
-  poltrona: "#B57A52",
-  madeira: "#C4A47E",
-  madeiraEscura: "#6E5240",
-  branco: "#EEEBE5",
-  preto: "#232726",
-  inox: "#B8BDBC",
-  bancada: "#3B3F3E",
-  marmore: "#E7E3DB",
-  louca: "#F8F8F6",
-  vidro: "#CFE3EA",
-  espelho: "#DCE6EA",
-  lencol: "#F2EFE9",
-  manta: "#A9B7A5",
-  carro: "#AEB7BB",
-  farol: "#F6F1D5",
-  lanterna: "#B23A2E",
-  pneu: "#1C1F1E",
-  externo: "#8E7A62",
-  livros: ["#C9573F", "#46656B", "#DDD0BC", "#A9B7A5"],
-};
-const C = CORES_MOVEIS;
-
-// geometrias unitárias compartilhadas (cada peça só muda a escala)
-const CAIXA = new THREE.BoxGeometry(1, 1, 1);
-const CILINDRO = new THREE.CylinderGeometry(0.5, 0.5, 1, 20);
-
-const materiais = new Map<string, THREE.Material>();
-function mat(cor: string, o: { rough?: number; metal?: number; opacity?: number; emissive?: string } = {}) {
-  const k = `${cor}|${o.rough ?? 0.8}|${o.metal ?? 0}|${o.opacity ?? 1}|${o.emissive ?? ""}`;
-  let m = materiais.get(k);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({
-      color: cor,
-      roughness: o.rough ?? 0.8,
-      // a cena não tem mapa de reflexo: metal acima de ~0,3 fica escuro, então o "brilho" vem da cor e da rugosidade
-      metalness: Math.min(o.metal ?? 0, 0.3),
-      transparent: o.opacity !== undefined && o.opacity < 1,
-      opacity: o.opacity ?? 1,
-      depthWrite: !(o.opacity !== undefined && o.opacity < 1),
-      emissive: o.emissive ?? "#000000",
-      emissiveIntensity: o.emissive ? 0.6 : 0,
-    });
-    materiais.set(k, m);
-  }
-  return m;
-}
-
-type V3 = [number, number, number];
-/** Caixa: centro (x, y, z) e tamanho (l, a, p). */
-function B({ c, s, m, sombra = true }: { c: V3; s: V3; m: THREE.Material; sombra?: boolean }) {
-  return <mesh geometry={CAIXA} material={m} position={c} scale={s} castShadow={sombra} receiveShadow />;
-}
-/** Cilindro em pé: centro, diâmetro, altura; `deitado` gira para o eixo X ou Z. */
-function Cil({ c, d, a, m, deitado }: { c: V3; d: number; a: number; m: THREE.Material; deitado?: "x" | "z" }) {
-  const rot: V3 = deitado === "x" ? [0, 0, Math.PI / 2] : deitado === "z" ? [Math.PI / 2, 0, 0] : [0, 0, 0];
-  return <mesh geometry={CILINDRO} material={m} position={c} rotation={rot} scale={[d, a, d]} castShadow receiveShadow />;
-}
-
-interface Dim {
-  l: number;
-  p: number;
-  a: number;
-  variante?: string;
-}
+export { CORES_MOVEIS } from "./primitivas";
 
 // ───────────────────────── Sala ─────────────────────────
 
@@ -531,14 +465,30 @@ const COMPONENTES: Record<TipoMovel, (d: Dim) => React.ReactElement> = {
   armario: Armario,
   carro: Carro,
   sofaExterno: SofaExterno,
+  // itens novos do catálogo: o desenho padrão fica em Modelos.tsx
+  tapete: MODELOS["tapete:padrao"],
+  planta: MODELOS["planta:padrao"],
+  luminaria: MODELOS["luminaria:padrao"],
+  quadro: MODELOS["quadro:padrao"],
+  aparador: MODELOS["aparador:padrao"],
+  banqueta: MODELOS["banqueta:padrao"],
+  puff: MODELOS["puff:padrao"],
+  comoda: MODELOS["comoda:padrao"],
+  coifa: MODELOS["coifa:padrao"],
+  microondas: MODELOS["microondas:padrao"],
+  toalheiro: MODELOS["toalheiro:padrao"],
+  cesto: MODELOS["cesto:padrao"],
+  espreguicadeira: MODELOS["espreguicadeira:padrao"],
+  churrasqueira: MODELOS["churrasqueira:padrao"],
 };
 
 /** Posiciona um móvel: centro na planta, altura de base e rotação (a frente aponta para `rotacao`). */
 export function Movel({ m }: { m: Movel3D }) {
-  const Comp = COMPONENTES[m.tipo];
+  // modelo do catálogo (Modelos.tsx) ou, se for o padrão de um tipo antigo, o desenho original daqui
+  const Comp = MODELOS[m.modelo] ?? COMPONENTES[m.tipo];
   return (
     <group position={P(m.x, m.y, m.elevacao)} rotation-y={m.rotacao + Math.PI / 2}>
-      <Comp l={m.largura} p={m.profundidade} a={m.altura} variante={m.variante} />
+      <Comp l={m.largura} p={m.profundidade} a={m.altura} variante={m.variante} base={m.base} />
     </group>
   );
 }
