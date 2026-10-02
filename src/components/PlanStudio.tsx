@@ -11,6 +11,7 @@ import { GenerationSteps } from "./GenerationSteps";
 import { OptionCards } from "./OptionCards";
 import { PlanViewer, type Layer } from "./PlanViewer";
 import { ProjectReport } from "./ProjectReport";
+import { Botao3D } from "./casa3d/Botao3D";
 import { CostPanel } from "./CostPanel";
 import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "./TechLayers";
 import { useWiringEditor, WiringToolbar } from "./WiringEditor";
@@ -78,6 +79,17 @@ export function PlanStudio({ studio }: { studio: Studio }) {
               {result!.fonte === "claude" ? "Leitura: IA Claude" : "Leitura: regras locais"}
             </span>
           </div>
+        )}
+        {plan && !generating && (
+          <Botao3D
+            plan={plan}
+            brief={result!.brief}
+            className="w-full justify-center sm:w-auto"
+            onEditar={() => {
+              setTab("arquitetura");
+              studio.setEditMode(true);
+            }}
+          />
         )}
       </header>
 

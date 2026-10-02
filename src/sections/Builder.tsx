@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { CircleAlert, CircleCheck, Hand, PencilRuler, Redo2, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Botao3D } from "../components/casa3d/Botao3D";
 import { BuilderCanvas, type BuilderTool } from "../components/BuilderCanvas";
 import { CostPanel } from "../components/CostPanel";
 import { PlanViewer } from "../components/PlanViewer";
@@ -388,21 +389,28 @@ export function Builder() {
 
           {/* Prancheta e camadas */}
           <div className="panel min-w-0 space-y-4 rounded-2xl p-4 sm:p-5">
-            <nav className="flex gap-1 overflow-x-auto border-b border-line text-sm" aria-label="Camadas do desenho">
-              {ABAS.map(([k, l]) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setAba(k)}
-                  className={`relative shrink-0 px-3 py-2 font-medium ${aba === k ? "text-ink" : "text-muted hover:text-ink"}`}
-                >
-                  {l}
-                  {aba === k && (
-                    <motion.span layoutId="b-aba" className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" transition={{ duration: DUR.base, ease: EASE }} />
-                  )}
-                </button>
-              ))}
-            </nav>
+            <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line">
+              <nav className="flex min-w-0 gap-1 overflow-x-auto text-sm" aria-label="Camadas do desenho">
+                {ABAS.map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setAba(k)}
+                    className={`relative shrink-0 px-3 py-2 font-medium ${aba === k ? "text-ink" : "text-muted hover:text-ink"}`}
+                  >
+                    {l}
+                    {aba === k && (
+                      <motion.span
+                        layoutId="b-aba"
+                        className="absolute inset-x-0 -bottom-px h-0.5 bg-primary"
+                        transition={{ duration: DUR.base, ease: EASE }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </nav>
+              <Botao3D plan={overlap.size ? null : plan} brief={brief} onEditar={() => setAba("desenho")} className="mb-1.5" />
+            </div>
             <div className="relative overflow-hidden rounded-xl border border-line bg-[#121a18]">
               <div className="relative aspect-[4/5] w-full sm:aspect-[5/6] lg:aspect-[4/4.3]">
                 <div className="absolute inset-0 p-2">

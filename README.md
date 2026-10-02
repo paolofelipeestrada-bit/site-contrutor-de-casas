@@ -3,7 +3,7 @@
 Descreva a casa → a IA entende → o algoritmo desenha a planta com medidas reais → cada ajuste seu ensina o sistema.
 
 ```
-Texto ──► IA (Claude) ──► Brief JSON ──► Programa de necessidades ──► Algoritmo de layout ──► Planta 2D
+Texto ──► IA (Claude) ──► Brief JSON ──► Programa de necessidades ──► Algoritmo de layout ──► Planta 2D ──► Casa 3D
                 ▲                                                                              │
                 └──────────── dicas + exemplos aprendidos ◄── Motor de aprendizado ◄── edições / 👍👎
 ```
@@ -48,6 +48,10 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Comandos do modo editar | `src/lib/plan/commands.ts` |
 | Móveis e aparelhos sanitários | `src/lib/plan/furniture.ts` |
 | Texto enviado à IA | `server/interpret.ts` (`SYSTEM`) |
+| 3D: pé-direito, espessura das paredes, altura de portas, janelas, portão, laje e telhado | `src/lib/three/model.ts` (objeto `CASA3D`) |
+| 3D: cores e acabamentos (paredes, pisos, telhado, vidro, rua) | `src/components/casa3d/Cena.tsx` (objeto `CORES`) |
+| 3D: velocidade de andar, sensibilidade do mouse/dedo | `src/components/casa3d/Navegacao.tsx` (objeto `ANDAR`) |
+| 3D: botões e telas ("Construindo sua casa…", medidas do cômodo) | `src/components/casa3d/Casa3D.tsx` |
 
 ## Arquitetura
 
@@ -60,6 +64,7 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Elétrica | `src/lib/plan/electrical.ts` | Luz (100 VA + 60 VA/4 m²), tomadas por perímetro, chuveiro/máquina/portão em circuito próprio, quadro junto à entrada, disjuntor e cabo por circuito. |
 | Hidráulica | `src/lib/plan/plumbing.ts` | Hidrômetro → caixa d'água → ramais; esgoto por caixa sifonada até caixas externas (CI/CG) e coletor até a rede; lista de materiais. |
 | Desenho | `src/components/PlanViewer.tsx`, `TechLayers.tsx` | SVG em metros; camadas técnicas por cima da mesma planta. |
+| Casa 3D | `src/lib/three/model.ts`, `src/components/casa3d/` | `planTo3D(plan)` extrude a planta: cada cômodo vira piso com as mesmas medidas; as bordas dos cômodos fechados viram paredes (internas quando há cômodo dos dois lados); cada porta e janela da planta recorta a parede no mesmo lugar (verga e peitoril acima/abaixo). Cobertura: laje com platibanda ou telhado de 4 águas. O Three.js só desenha esse modelo — a IA não decide nada no 3D. Carregado sob demanda (só baixa ao clicar em "Entrar na casa 3D"). |
 | Aprendizado | `src/lib/learning/engine.ts` | Edições, avaliações e escolha de opção ajustam as próximas plantas; fica no navegador (`localStorage`). |
 
 Para depurar o layout: `TXT="terreno 8 por 20, 70 m2, 2 quartos" OUT=planta.svg npm run debug:layout`.
@@ -69,7 +74,7 @@ Para depurar o layout: `TXT="terreno 8 por 20, 70 m2, 2 quartos" OUT=planta.svg 
 1. Aprendizado coletivo num banco de dados (as funções já são puras).
 2. Água quente, ventilação de esgoto e caimentos na hidráulica; DR e padrão de entrada na elétrica.
 3. Exportar PDF/DXF com cotas e as tabelas.
-4. 3D a partir das mesmas paredes; estimativa de custo a partir das listas de materiais.
+4. 3D — próximas etapas: móveis (a partir de `furniture.ts`), dia/noite com luzes internas, materiais e personalização.
 
 ## Imagens
 

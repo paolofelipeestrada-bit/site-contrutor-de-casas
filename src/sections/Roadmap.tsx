@@ -17,7 +17,12 @@ const FASES: { n: number; titulo: string; texto: string; status: "Disponível" |
     status: "Prévia",
   },
   { n: 3, titulo: "Hidráulica e esgoto", texto: "Água fria, caixa d'água pelo número de moradores, esgoto até a rede e lista de materiais.", status: "Prévia" },
-  { n: 4, titulo: "3D navegável", texto: "Paredes extrudadas a partir da mesma planta, com aberturas e materiais.", status: "Em breve" },
+  {
+    n: 4,
+    titulo: "3D navegável",
+    texto: "A casa montada a partir da planta 2D, com as mesmas medidas: ande por dentro, abra portas, veja o exterior e as medidas de cada cômodo.",
+    status: "Prévia",
+  },
   {
     n: 5,
     titulo: "Estimativa de custo",
