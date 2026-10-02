@@ -1,5 +1,7 @@
 import { MotionConfig } from "framer-motion";
-import { Footer, Header } from "./sections/Chrome";
+import { Intro } from "./components/Intro";
+import { SmoothScroll } from "./components/SmoothScroll";
+import { Footer, Header, ScrollProgress } from "./sections/Chrome";
 import { Builder } from "./sections/Builder";
 import { Hero } from "./sections/Hero";
 import { Manifesto } from "./sections/Manifesto";
@@ -11,14 +13,17 @@ export default function App() {
   return (
     // reducedMotion="user": quem pediu menos movimento no sistema vê tudo sem animação
     <MotionConfig reducedMotion="user">
+      <SmoothScroll />
+      <Intro />
+      <ScrollProgress />
       <div className="min-h-screen overflow-x-clip">
         <Header />
         <main>
           <Hero />
-        <Manifesto />
+          <Manifesto />
           <Pipeline />
           <Studio />
-        <Builder />
+          <Builder />
           <Roadmap />
         </main>
         <Footer />

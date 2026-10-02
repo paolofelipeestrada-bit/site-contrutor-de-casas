@@ -1,3 +1,4 @@
+import { MaskText } from "../components/MaskText";
 import { Reveal, RevealItem } from "../components/Reveal";
 import { BriefForm } from "../components/BriefForm";
 import { PlanStudio } from "../components/PlanStudio";
@@ -12,9 +13,9 @@ export function Studio() {
           <RevealItem as="p" className="eyebrow">
             Briefing
           </RevealItem>
-          <RevealItem as="h2" className="mt-2 font-display text-3xl font-bold sm:text-4xl">
+          <MaskText as="h2" className="mt-2 font-display text-3xl font-bold sm:text-4xl">
             Conte como é a casa
-          </RevealItem>
+          </MaskText>
           <RevealItem as="p" className="mt-3 text-muted">
             Preencha o básico e escreva do seu jeito. Você recebe 3 opções calculadas para comparar, escolher e editar.
           </RevealItem>

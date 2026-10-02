@@ -26,7 +26,10 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 
 | Quero mudar… | Arquivo |
 |---|---|
-| Animações (tempos, curvas, ordem do desenho) | `src/lib/motion.ts` |
+| Animações (tempos, curvas, ordem do desenho, rolagem suave, profundidade, abertura) | `src/lib/motion.ts` (`ROLAGEM`, `PARALLAX`, `INTRO_DUR`) |
+| Rolagem suave da página (Lenis) | `src/components/SmoothScroll.tsx` |
+| Abertura com o logo, títulos palavra por palavra, botões magnéticos | `src/components/Intro.tsx`, `MaskText.tsx`, `Magnetic.tsx` |
+| Menu que some ao rolar e barra de progresso | `src/sections/Chrome.tsx` |
 | Preços da estimativa de custo (R$/m², materiais, etapas) | `src/lib/plan/cost.ts` (objeto `CUSTOS`) |
 | Modo construir do zero (exemplo inicial, grade) | `src/lib/builder.ts`, `src/sections/Builder.tsx` |
 | Ferramentas do editor de fiação | `src/components/WiringEditor.tsx` |

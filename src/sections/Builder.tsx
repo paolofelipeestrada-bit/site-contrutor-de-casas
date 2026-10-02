@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BuilderCanvas, type BuilderTool } from "../components/BuilderCanvas";
 import { CostPanel } from "../components/CostPanel";
 import { PlanViewer } from "../components/PlanViewer";
+import { MaskText } from "../components/MaskText";
 import { Reveal, RevealItem } from "../components/Reveal";
 import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } from "../components/TechLayers";
 import { useWiringEditor, WiringToolbar } from "../components/WiringEditor";
@@ -145,9 +146,9 @@ export function Builder() {
           <RevealItem as="p" className="eyebrow">
             Construir do zero
           </RevealItem>
-          <RevealItem as="h2" className="mt-2 font-display text-4xl font-medium sm:text-5xl">
+          <MaskText as="h2" className="mt-2 font-display text-4xl font-medium sm:text-5xl">
             Desenhe sua casa, cômodo por cômodo.
-          </RevealItem>
+          </MaskText>
           <RevealItem as="p" className="mt-4 text-muted">
             Arraste na prancheta para criar cada ambiente. As portas, janelas, verificações, a elétrica, a água e o custo são calculados a cada traço.
           </RevealItem>

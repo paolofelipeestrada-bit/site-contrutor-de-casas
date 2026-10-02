@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { INTRO } from "../lib/motion";
 
 /**
  * Desenho do topo: uma planta se traçando sozinha, em linha clara sobre papel milimetrado.
@@ -15,7 +16,7 @@ const ROOMS = [
   { x: 260, y: 170, w: 80, h: 58, t: "COZINHA", a: "12,1", social: true },
   { x: 60, y: 170, w: 100, h: 110, t: "GARAGEM", a: "18,7" },
 ];
-const loop = (start: number, dur = 1) => ({ times: [0, start / CYCLE, (start + dur) / CYCLE, 0.9, 1], duration: CYCLE, repeat: Infinity, ease: "easeInOut" as const });
+const loop = (start: number, dur = 1) => ({ times: [0, start / CYCLE, (start + dur) / CYCLE, 0.9, 1], duration: CYCLE, repeat: Infinity, ease: "easeInOut" as const, delay: INTRO });
 
 export function HeroArt() {
   return (
@@ -50,7 +51,7 @@ export function HeroArt() {
           r={4}
           fill="#C9573F"
           animate={{ cx: [60, 340, 340, 60, 60, 190, 210, 340, 60], cy: [40, 40, 280, 280, 170, 70, 170, 120, 122], opacity: [1, 1, 1, 1, 1, 1, 1, 1, 0] }}
-          transition={{ duration: 3.4, repeat: Infinity, repeatDelay: CYCLE - 3.4, ease: "easeInOut" }}
+          transition={{ duration: 3.4, repeat: Infinity, repeatDelay: CYCLE - 3.4, ease: "easeInOut", delay: INTRO }}
         />
       </svg>
       <figcaption className="relative flex flex-wrap justify-between gap-2 border-t border-line px-4 py-3 font-mono text-[11px] text-muted">

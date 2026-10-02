@@ -48,3 +48,31 @@ export const pop = (delay: number): { initial: object; animate: object; transiti
   animate: { opacity: 1, scale: 1 },
   transition: { delay, duration: 0.6, ease: EASE },
 });
+
+/** Rolagem suave (Lenis): quanto maior "lerp", mais rápido a página alcança a roda do mouse. */
+export const ROLAGEM = { lerp: 0.085, wheelMultiplier: 0.9, offsetAncora: -72 };
+
+/** Profundidade ao rolar (px que cada camada desloca enquanto a seção passa pela tela). */
+export const PARALLAX = { texto: -90, arte: 70, foto: 48 };
+
+/**
+ * Abertura: o símbolo se desenha e a cortina sobe. Só aparece na primeira visita da sessão
+ * e nunca para quem pediu menos movimento. Quando não aparece, INTRO vale 0 e nada atrasa.
+ */
+export const INTRO_DUR = { traco: 1.3, cortina: 1.0 };
+
+function deveMostrarIntro(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return false;
+  try {
+    if (sessionStorage.getItem("casaai-intro")) return false;
+    sessionStorage.setItem("casaai-intro", "1");
+  } catch {
+    // sem armazenamento (aba privada): mostra a abertura mesmo assim
+  }
+  return true;
+}
+
+export const INTRO_ATIVA = deveMostrarIntro();
+/** Atraso (s) para as animações do topo começarem quando a cortina já está subindo. */
+export const INTRO = INTRO_ATIVA ? INTRO_DUR.traco + 0.35 : 0;
