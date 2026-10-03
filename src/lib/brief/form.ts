@@ -55,3 +55,19 @@ export const DEFAULT_FORM: FormValues = {
   descricao:
     "Quero uma sala integrada à cozinha, bastante luz natural, quartos mais reservados e uma varanda nos fundos para reunir a família.",
 };
+
+/**
+ * Tamanho automático: largura × fundo dá a área do terreno, e a área da casa é sugerida
+ * como uma fração dela (recuos, quintal e garagem descoberta ocupam o resto).
+ * 0,4 → terreno de 12 × 25 m (300 m²) sugere uma casa de 120 m².
+ */
+export const OCUPACAO_SUGERIDA = 0.4;
+
+export function areaDoTerreno(largura: number, profundidade: number): number | null {
+  return Number.isFinite(largura) && Number.isFinite(profundidade) && largura > 0 && profundidade > 0 ? Math.round(largura * profundidade * 10) / 10 : null;
+}
+
+export function areaSugerida(largura: number, profundidade: number): number | null {
+  const t = areaDoTerreno(largura, profundidade);
+  return t === null ? null : Math.min(600, Math.max(35, Math.round(t * OCUPACAO_SUGERIDA)));
+}

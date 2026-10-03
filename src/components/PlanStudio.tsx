@@ -17,14 +17,13 @@ import { ElectricalOverlay, ElectricalPanel, PlumbingOverlay, PlumbingPanel } fr
 import { useWiringEditor, WiringToolbar } from "./WiringEditor";
 import { ZoomPan } from "./ZoomPan";
 
-type Tab = Layer | "custo" | "dados" | "aprendizado";
+type Tab = Layer | "custo" | "aprendizado";
 
 const TABS: [Tab, string][] = [
   ["arquitetura", "Planta"],
   ["eletrica", "Elétrica"],
   ["hidraulica", "Hidráulica"],
   ["custo", "Custo"],
-  ["dados", "Dados"],
   ["aprendizado", "Aprendizado"],
 ];
 
@@ -174,8 +173,6 @@ export function PlanStudio({ studio }: { studio: Studio }) {
                 </p>
               )}
             </div>
-          ) : tab === "dados" ? (
-            <DataPanel studio={studio} />
           ) : (
             <LearningPanel studio={studio} />
           )}
@@ -391,20 +388,6 @@ function Toolbar({ studio }: { studio: Studio }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function DataPanel({ studio }: { studio: Studio }) {
-  return (
-    <div className="absolute inset-0 overflow-auto p-4">
-      <p className="mb-3 max-w-prose text-sm text-muted">
-        Este JSON é o que a IA entendeu do seu pedido. O algoritmo usa só estes dados para calcular a planta, por isso o resultado pode ser conferido.
-      </p>
-      {studio.result!.aviso && <p className="mb-2 text-xs text-warn">{studio.result!.aviso}</p>}
-      <pre className="whitespace-pre-wrap break-words rounded-lg border border-line bg-bg p-3 font-mono text-[11px] leading-relaxed text-ink/90">
-        {JSON.stringify(studio.result!.brief, null, 2)}
-      </pre>
     </div>
   );
 }

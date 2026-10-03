@@ -1,7 +1,7 @@
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { STYLE_INFO } from "../lib/catalog";
-import type { FormValues } from "../lib/brief/form";
+import { areaDoTerreno, areaSugerida, OCUPACAO_SUGERIDA, type FormValues } from "../lib/brief/form";
 import { STYLES, type Norte } from "../lib/types";
 import type { Studio } from "../hooks/useStudio";
 import { Chip, NumberField, StepTitle, Stepper } from "./ui";
@@ -22,6 +22,8 @@ const EXEMPLOS = [
   "Casa rústica para a família: cozinha grande, área gourmet com churrasqueira e muita luz natural.",
 ];
 
+const fmtNum = (v: number) => String(Math.round(v * 10) / 10).replace(".", ",");
+
 const NORTE: [Norte | null, string][] = [
   [null, "Não sei"],
   ["frente", "Frente"],
@@ -37,6 +39,15 @@ export function BriefForm({ studio }: { studio: Studio }) {
   const set = <K extends keyof FormValues>(k: K, v: FormValues[K]) => setForm({ ...form, [k]: v });
   const setAv = <K extends keyof FormValues["avancado"]>(k: K, v: FormValues["avancado"][K]) => setForm({ ...form, avancado: { ...form.avancado, [k]: v } });
   const nullable = (v: number) => (Number.isFinite(v) ? v : null);
+  // a área da casa acompanha largura × fundo até a pessoa digitar uma área própria
+  const [areaManual, setAreaManual] = useState(form.area !== areaSugerida(form.largura, form.profundidade));
+  const terreno = areaDoTerreno(form.largura, form.profundidade);
+  const sugerida = areaSugerida(form.largura, form.profundidade);
+  const setLote = (k: "largura" | "profundidade", v: number) => {
+    const next = { ...form, [k]: v };
+    const s = areaSugerida(next.largura, next.profundidade);
+    setForm(!areaManual && s !== null ? { ...next, area: s } : next);
+  };
 
   return (
     <form
@@ -49,10 +60,51 @@ export function BriefForm({ studio }: { studio: Studio }) {
       <fieldset className="space-y-3">
         <StepTitle n={1}>Terreno e tamanho</StepTitle>
         <div className="grid grid-cols-3 gap-2.5">
-          <NumberField id="largura" label="Largura" unit="m" min={5} value={form.largura} onChange={(v) => set("largura", v)} />
-          <NumberField id="profundidade" label="Fundo" unit="m" min={8} value={form.profundidade} onChange={(v) => set("profundidade", v)} />
-          <NumberField id="area" label="Área" unit="m²" min={35} value={form.area} onChange={(v) => set("area", v)} />
+          <NumberField id="largura" label="Largura" unit="m" min={5} value={form.largura} onChange={(v) => setLote("largura", v)} />
+          <NumberField id="profundidade" label="Fundo" unit="m" min={8} value={form.profundidade} onChange={(v) => setLote("profundidade", v)} />
+          <NumberField
+            id="area"
+            label="Área da casa"
+            unit="m²"
+            min={35}
+            value={form.area}
+            onChange={(v) => {
+              setAreaManual(true);
+              set("area", v);
+            }}
+          />
         </div>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted" aria-live="polite">
+          {terreno !== null ? (
+            <>
+              <span>
+                Terreno:{" "}
+                <span className="tabular font-mono text-ink">
+                  {fmtNum(form.largura)} × {fmtNum(form.profundidade)} = {fmtNum(terreno)} m²
+                </span>
+              </span>
+              {areaManual ? (
+                sugerida !== null &&
+                sugerida !== form.area && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAreaManual(false);
+                      set("area", sugerida);
+                    }}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    usar área automática ({sugerida} m²)
+                  </button>
+                )
+              ) : (
+                <span>· casa calculada automaticamente ({Math.round(OCUPACAO_SUGERIDA * 100)}% do terreno)</span>
+              )}
+            </>
+          ) : (
+            <span>Informe largura e fundo do terreno.</span>
+          )}
+        </p>
       </fieldset>
 
       <fieldset className="space-y-3">
