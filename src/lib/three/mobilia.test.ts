@@ -5,7 +5,7 @@ import { exemploInicial, planFromRooms } from "../builder";
 import { plansFromBrief } from "../pipeline";
 import type { Brief, Plan, Rect } from "../types";
 import { ROOM_INFO } from "../catalog";
-import { mobiliaAutomatica, regrasDoComodo, type Movel3D } from "./mobilia";
+import { mobiliaAutomatica, mobiliarComVistoria, regrasDoComodo, VISTORIA, type Movel3D } from "./mobilia";
 
 const PEDIDOS = [
   ["12x25, 3 quartos", 12, 25, 120, "Casa de 120 m², 3 quartos, 2 banheiros, garagem, sala integrada à cozinha, varanda nos fundos"],
@@ -164,5 +164,62 @@ describe("mobília 3D automática", () => {
     if (faltas.length && process.env.MOBILIA_LOG) require("fs").writeFileSync(process.env.MOBILIA_LOG, faltas.join("\n"));
     // nenhum móvel é forçado: quando não cabe com folga ele fica de fora, mas isso deve ser raro
     expect(faltas.length / total).toBeLessThan(0.08);
+  });
+});
+
+describe("vistoria: o agente que confere se o cômodo ficou vazio", () => {
+  const casos = plantas();
+  const chao = (ms: Movel3D[], id: string) => ms.filter((m) => m.comodo === id && m.tipo !== "tapete" && m.elevacao < 1).reduce((s, m) => s + m.caixa.w * m.caixa.h, 0);
+
+  for (const [nome, plan, brief] of casos) {
+    it(`${nome}: só acrescenta (não move nem tira nada) e nunca esvazia um cômodo`, () => {
+      const base = mobiliaAutomatica(plan, brief, { vistoria: false });
+      const { moveis, vistoria } = mobiliarComVistoria(plan, brief);
+      const chave = (m: Movel3D) => `${m.comodo}|${m.tipo}|${m.x.toFixed(3)}|${m.y.toFixed(3)}`;
+      const final = new Set(moveis.map(chave));
+      for (const m of base) expect(final.has(chave(m)), `${m.tipo} sumiu ou mudou de lugar`).toBe(true);
+      expect(moveis.length - base.length).toBe(vistoria.reduce((s, v) => s + v.acrescentados.length, 0));
+      for (const v of vistoria) {
+        expect(v.depois).toBeGreaterThanOrEqual(v.antes - 1e-9);
+        expect(v.acrescentados.length).toBeLessThanOrEqual(VISTORIA.maxPorComodo + 1); // +1: o carro da garagem vem em grupo
+      }
+      for (const r of plan.rooms) expect(chao(moveis, r.id)).toBeGreaterThanOrEqual(chao(base, r.id) - 1e-9);
+    });
+  }
+
+  it("cômodos que estavam abaixo da meta ficam mais cheios", () => {
+    let abaixo = 0;
+    let melhoraram = 0;
+    for (const [, plan, brief] of casos)
+      for (const v of mobiliarComVistoria(plan, brief).vistoria) {
+        if (v.tipo === "garagem" || v.antes >= v.meta) continue;
+        abaixo++;
+        if (v.depois > v.antes + 0.01) melhoraram++;
+      }
+    expect(abaixo).toBeGreaterThan(0);
+    expect(melhoraram / abaixo).toBeGreaterThan(0.6);
+  });
+
+  it("sala, quartos e escritório sempre têm algum toque de decoração (quadro ou planta) quando cabe", () => {
+    let sem = 0;
+    let total = 0;
+    for (const [, plan, brief] of casos) {
+      const ms = mobiliaAutomatica(plan, brief);
+      for (const r of plan.rooms.filter((x) => ["sala", "quarto", "suite", "escritorio"].includes(x.tipo))) {
+        total++;
+        if (!ms.some((m) => m.comodo === r.id && (m.tipo === "quadro" || m.tipo === "planta"))) sem++;
+      }
+    }
+    expect(sem / total).toBeLessThan(0.1);
+  });
+
+  it("garagem apertada ganha o carro encostando nas portas que abrem para o outro lado", () => {
+    const brief = interpretLocally({ ...DEFAULT_FORM, largura: 10, profundidade: 25, area: 90 }, "casa de 90 m², 2 quartos, 1 banheiro");
+    const plan = plansFromBrief(brief)[0];
+    const g = plan.rooms.find((r) => r.tipo === "garagem")!;
+    expect(mobiliaAutomatica(plan, brief, { vistoria: false }).some((m) => m.comodo === g.id && m.tipo === "carro")).toBe(false);
+    const { moveis, vistoria } = mobiliarComVistoria(plan, brief);
+    expect(moveis.some((m) => m.comodo === g.id && m.tipo === "carro")).toBe(true);
+    expect(vistoria.find((v) => v.comodo === g.id)?.acrescentados).toContain("carro");
   });
 });

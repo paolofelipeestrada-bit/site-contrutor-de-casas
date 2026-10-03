@@ -30,6 +30,7 @@ Deploy: qualquer host de Vite com funções serverless. Na Vercel, `api/interpre
 | Rolagem suave da página (Lenis) | `src/components/SmoothScroll.tsx` |
 | Abertura com o logo, títulos palavra por palavra, botões magnéticos | `src/components/Intro.tsx`, `MaskText.tsx`, `Magnetic.tsx` |
 | Menu que some ao rolar e barra de progresso | `src/sections/Chrome.tsx` |
+| Quão cheio cada cômodo do 3D deve ficar (vistoria da mobília: metas e peças extras) | `src/lib/three/mobilia.ts` (`VISTORIA`, `REFORCOS`) |
 | Área da casa calculada a partir de largura × fundo (% do terreno) | `src/lib/brief/form.ts` (`OCUPACAO_SUGERIDA`) |
 | Preços da estimativa de custo (R$/m², materiais, etapas) | `src/lib/plan/cost.ts` (objeto `CUSTOS`) |
 | Modo construir do zero (exemplo inicial, grade) | `src/lib/builder.ts`, `src/sections/Builder.tsx` |

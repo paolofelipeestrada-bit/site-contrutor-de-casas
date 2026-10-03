@@ -4,7 +4,7 @@ import { ArrowLeft, Box, Check, Eye, Footprints, House, Map as MapIcon, Moon, Mo
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EASE } from "../../lib/motion";
 import { carregarPrefs, salvarPrefs, type PrefsControle } from "../../lib/three/controle";
-import { mobiliaAutomatica, obstaculosDosMoveis } from "../../lib/three/mobilia";
+import { mobiliarComVistoria, obstaculosDosMoveis, type VistoriaComodo } from "../../lib/three/mobilia";
 import { medidasDoComodo, planTo3D, type Cobertura, type Room3D } from "../../lib/three/model";
 import type { Brief, Plan } from "../../lib/types";
 import { Symbol } from "../Logo";
@@ -45,8 +45,9 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
 
   // a planta 2D é a fonte de verdade: qualquer mudança nela refaz o modelo
   const model = useMemo(() => planTo3D(plan, brief, cobertura), [plan, brief, cobertura]);
-  // planta → modelo 3D → móveis: a mobília também sai da planta (tipo e medidas de cada cômodo)
-  const moveis = useMemo(() => mobiliaAutomatica(plan, brief, { variacao }), [plan, brief, variacao]);
+  // planta → modelo 3D → móveis: a mobília também sai da planta (tipo e medidas de cada cômodo);
+  // em seguida a vistoria confere cômodo por cômodo e completa o que ficou vazio
+  const { moveis, vistoria } = useMemo(() => mobiliarComVistoria(plan, brief, { variacao }), [plan, brief, variacao]);
   const obstaculosMoveis = useMemo(() => (mobilia ? obstaculosDosMoveis(moveis) : []), [moveis, mobilia]);
   const sel = model.comodos.find((r) => r.id === selecionado) ?? null;
   const rotulos = useMemo(() => rotulosDaCena(model, medidas, modo), [model, medidas, modo]);
@@ -262,7 +263,7 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
             transition={{ duration: 0.6, ease: EASE }}
             className="absolute inset-x-3 bottom-32 z-20 mx-auto max-w-sm rounded-2xl bg-bg/92 p-5 text-center shadow-2xl backdrop-blur sm:bottom-28"
           >
-            {fase === "obra" ? <Construindo /> : <Pronta onEntrar={() => irPara("andar")} onExterior={() => irPara("exterior")} />}
+            {fase === "obra" ? <Construindo /> : <Pronta vistoria={vistoria} onEntrar={() => irPara("andar")} onExterior={() => irPara("exterior")} />}
           </motion.div>
         )}
       </AnimatePresence>
@@ -338,12 +339,12 @@ export default function Casa3D({ plan, brief, onFechar, onEditar }: { plan: Plan
   );
 }
 
-const ETAPAS = ["Lendo a planta 2D", "Levantando as paredes", "Portas e janelas", "Cobertura"];
+const ETAPAS = ["Lendo a planta 2D", "Levantando as paredes", "Portas e janelas", "Cobertura", "Vistoriando os móveis de cada cômodo"];
 
 function Construindo() {
   const [i, setI] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setI((v) => Math.min(ETAPAS.length - 1, v + 1)), 850);
+    const t = setInterval(() => setI((v) => Math.min(ETAPAS.length - 1, v + 1)), 700);
     return () => clearInterval(t);
   }, []);
   return (
@@ -357,11 +358,30 @@ function Construindo() {
   );
 }
 
-function Pronta({ onEntrar, onExterior }: { onEntrar: () => void; onExterior: () => void }) {
+/** "9 cômodos conferidos · 7 peças acrescentadas" + os cômodos que mais receberam. */
+function resumoVistoria(v: VistoriaComodo[]) {
+  const comPecas = v.filter((c) => c.acrescentados.length > 0).sort((a, b) => b.acrescentados.length - a.acrescentados.length);
+  const total = comPecas.reduce((s, c) => s + c.acrescentados.length, 0);
+  const cabecalho = `Vistoria: ${v.length} cômodos conferidos · ${total ? `${total} ${total === 1 ? "peça acrescentada" : "peças acrescentadas"} onde estava vazio` : "nada vazio"}`;
+  const detalhe = comPecas
+    .slice(0, 3)
+    .map((c) => `${c.nome} +${c.acrescentados.length}`)
+    .join(" · ");
+  return { cabecalho, detalhe };
+}
+
+function Pronta({ vistoria, onEntrar, onExterior }: { vistoria: VistoriaComodo[]; onEntrar: () => void; onExterior: () => void }) {
+  const r = resumoVistoria(vistoria);
   return (
     <div>
       <p className="font-display text-lg font-semibold">Sua casa está pronta.</p>
       <p className="mt-1 text-sm text-muted">Montada a partir da planta 2D, com as mesmas medidas.</p>
+      {vistoria.length > 0 && (
+        <p className="mt-2 text-xs text-muted">
+          <span className="text-ink/90">{r.cabecalho}</span>
+          {r.detalhe && <span className="block">{r.detalhe}</span>}
+        </p>
+      )}
       <div className="mt-4 flex justify-center gap-2">
         <button
           type="button"
