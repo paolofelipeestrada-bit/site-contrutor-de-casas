@@ -1,5 +1,6 @@
 import { MotionConfig } from "framer-motion";
 import { Intro } from "./components/Intro";
+import { Mascote } from "./components/Mascote";
 import { SmoothScroll } from "./components/SmoothScroll";
 import { Footer, Header, ScrollProgress } from "./sections/Chrome";
 import { Builder } from "./sections/Builder";
@@ -28,6 +29,7 @@ export default function App() {
         </main>
         <Footer />
       </div>
+      <Mascote />
     </MotionConfig>
   );
 }

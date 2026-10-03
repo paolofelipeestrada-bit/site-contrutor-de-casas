@@ -1,7 +1,13 @@
 import type { Plugin, ViteDevServer } from "vite";
 import { loadEnv } from "vite";
 
-/** Expõe POST /api/interpret no `npm run dev`, usando o mesmo handler da produção (api/interpret.ts). */
+/** Rotas de API do `npm run dev`, com os mesmos handlers da produção (pasta api/). */
+const ROTAS: Record<string, () => string> = {
+  "/api/interpret": () => "/server/interpret.ts",
+  "/api/ajuda": () => "/server/ajuda.ts",
+};
+
+/** Expõe POST /api/interpret e /api/ajuda no `npm run dev`, usando os mesmos handlers da produção. */
 export function interpretApiPlugin(): Plugin {
   return {
     name: "casaai-interpret-api",
@@ -11,11 +17,13 @@ export function interpretApiPlugin(): Plugin {
         process.env.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
       }
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith("/api/interpret")) return next();
+        const rota = Object.keys(ROTAS).find((r) => req.url?.startsWith(r));
+        if (!rota) return next();
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(chunk as Buffer);
-        const mod = (await server.ssrLoadModule("/server/interpret.ts")) as typeof import("./interpret");
-        const response = await mod.handleInterpret(
+        const mod = await server.ssrLoadModule(ROTAS[rota]());
+        const handler = (rota === "/api/ajuda" ? mod.handleAjuda : mod.handleInterpret) as (r: Request) => Promise<Response>;
+        const response = await handler(
           new Request(`http://localhost${req.url}`, {
             method: req.method,
             headers: { "content-type": "application/json" },
