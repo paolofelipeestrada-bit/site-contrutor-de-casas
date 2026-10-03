@@ -70,7 +70,10 @@ describe("mobília 3D automática", () => {
       it("nenhum móvel no chão entra na área das portas e passagens", () => {
         for (const m of moveis.filter((x) => x.elevacao < 2)) {
           const room = plan.rooms.find((r) => r.id === m.comodo)!;
-          for (const p of regrasDoComodo(room, plan).portas) expect(sobrepoe(p, m.caixa), `${m.tipo} bloqueia porta em ${room.nome}`).toBe(false);
+          // o carro pode chegar a 40 cm de uma porta que abre para o outro cômodo (a folha não passa pela garagem)
+          const regras = regrasDoComodo(room, plan);
+          for (const p of m.tipo === "carro" ? regras.portasCurtas : regras.portas)
+            expect(sobrepoe(p, m.caixa), `${m.tipo} bloqueia porta em ${room.nome}`).toBe(false);
         }
       });
 
@@ -136,7 +139,7 @@ describe("mobília 3D automática", () => {
           // móveis só do próprio tipo de cômodo
           if (r.tipo === "garagem") expect([...tipos].every((t) => t === "carro")).toBe(true);
           if (r.tipo.startsWith("banheiro") || r.tipo === "lavabo")
-            expect([...tipos].every((t) => ["vaso", "lavatorio", "espelho", "box", "toalheiro", "cesto"].includes(t))).toBe(true);
+            expect([...tipos].every((t) => ["vaso", "lavatorio", "espelho", "box", "toalheiro", "cesto", "planta", "quadro"].includes(t))).toBe(true);
         }
       });
 

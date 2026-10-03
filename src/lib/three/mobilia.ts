@@ -1,6 +1,6 @@
 import { escolherModelo, type TipoMovel } from "./catalogo";
 import { CASA3D } from "./model";
-import type { Brief, Opening, PlacedRoom, Plan, Rect, Side, Style } from "../types";
+import type { Brief, Opening, PlacedRoom, Plan, Rect, RoomType, Side, Style } from "../types";
 
 /**
  * MOBÍLIA AUTOMÁTICA (geometria pura, sem Three.js).
@@ -12,6 +12,9 @@ import type { Brief, Opening, PlacedRoom, Plan, Rect, Side, Style } from "../typ
  * - não se sobrepõem, e cada um guarda o espaço de uso na frente (abrir o guarda-roupa, sentar no vaso…);
  * - corredor (circulação) fica sempre vazio.
  * Se um móvel não couber respeitando tudo isso, ele simplesmente não é colocado.
+ *
+ * Depois, a VISTORIA confere cada cômodo: se a parte mobiliada do piso ficou abaixo da meta do tipo de cômodo,
+ * ela acrescenta peças complementares (canto de leitura, estante, cômoda, plantas, quadros…) pelas mesmas regras.
  */
 
 export type { TipoMovel } from "./catalogo";
@@ -167,6 +170,8 @@ interface Ctx {
   /** vão livre do cômodo (já descontando meia parede e uma pequena folga) */
   A: Caixa;
   portas: Caixa[];
+  /** as mesmas áreas, mas só 40 cm de chegada nas portas que abrem para o OUTRO cômodo (último recurso para o carro) */
+  portasCurtas: Caixa[];
   janelas: Janela[];
   paredes: Record<Side, boolean>;
   moveis: Movel3D[];
@@ -237,6 +242,7 @@ function contexto(room: PlacedRoom, plan: Plan, estilo?: Style, semente = ""): C
 
   // área de cada porta/passagem dentro do cômodo: folha abrindo + chegar até ela
   const portas: Caixa[] = [];
+  const portasCurtas: Caixa[] = [];
   const janelas: Janela[] = [];
   for (const o of plan.openings) {
     if (!o.rooms.includes(room.id)) continue;
@@ -255,8 +261,10 @@ function contexto(room: PlacedRoom, plan: Plan, estilo?: Style, semente = ""): C
     const q = quadro(daRect(room), lado);
     const u0 = (vert ? a - room.y : a - room.x) - 0.15;
     portas.push(q.caixa(u0, 0, b - a + 0.3, prof));
+    const abreParaOutro = o.kind === "door" && o.swingInto !== undefined && o.swingInto !== room.id && o.rooms.length > 1;
+    portasCurtas.push(q.caixa(u0, 0, b - a + 0.3, abreParaOutro ? Math.min(prof, 0.4) : prof));
   }
-  return { room, A, portas, janelas, paredes, moveis: [], usos: [], n: 0, estilo, semente };
+  return { room, A, portas, portasCurtas, janelas, paredes, moveis: [], usos: [], n: 0, estilo, semente };
 }
 
 /** Confere um item contra todas as regras do cômodo (e contra os outros itens do mesmo grupo). */
@@ -1163,14 +1171,189 @@ function closet(ctx: Ctx) {
   guardaRoupa(ctx, ladosPreferidos(ctx), 2.4);
 }
 
+// ───────────────────────── Vistoria: o agente que confere se o cômodo ficou vazio ─────────────────────────
+
+/**
+ * Metas da vistoria. `meta` = fração do piso do cômodo ocupada por móveis de chão (sem tapete) para ele não parecer vazio.
+ * Para deixar a casa mais cheia ou mais vazia, edite aqui.
+ */
+export const VISTORIA = {
+  meta: {
+    sala: 0.24,
+    jantar: 0.22,
+    cozinha: 0.22,
+    quarto: 0.34,
+    suite: 0.32,
+    escritorio: 0.24,
+    closet: 0.35,
+    lavanderia: 0.24,
+    banheiro: 0.22,
+    banheiro_suite: 0.22,
+    lavabo: 0.12,
+    varanda: 0.18,
+    area_gourmet: 0.2,
+  } as Partial<Record<RoomType, number>>,
+  /** cômodos que sempre ganham um toque de decoração (quadro ou planta) se não tiverem nenhum */
+  decorar: ["sala", "jantar", "cozinha", "quarto", "suite", "escritorio", "varanda", "area_gourmet"] as RoomType[],
+  /** no máximo quantas peças a vistoria acrescenta por cômodo */
+  maxPorComodo: 6,
+};
+
+export interface VistoriaComodo {
+  comodo: string;
+  nome: string;
+  tipo: RoomType;
+  /** fração do piso ocupada antes e depois da vistoria */
+  antes: number;
+  depois: number;
+  meta: number;
+  acrescentados: TipoMovel[];
+}
+
+/** Fração do piso do cômodo ocupada por móveis de chão (tapete, quadro e peças suspensas não contam). */
+function ocupacao(ctx: Ctx) {
+  const chao = ctx.moveis.filter((m) => m.tipo !== "tapete" && m.elevacao < 1).reduce((s, m) => s + m.caixa.w * m.caixa.h, 0);
+  return chao / Math.max(1e-6, ctx.room.w * ctx.room.h);
+}
+
+type Reforco = (ctx: Ctx) => boolean;
+
+/** Uma peça encostada numa parede livre (só se o cômodo ainda não tem uma igual). */
+const pecaNaParede =
+  (tipo: TipoMovel, d: { l: number; p: number; a: number }, uso = 0.45): Reforco =>
+  (ctx) =>
+    !ctx.moveis.some((m) => m.tipo === tipo) && encostarSimples(ctx, tipo, d, uso);
+
+/** Poltrona encostada na parede com luminária de piso ao lado. */
+const cantoDeLeitura: Reforco = (ctx) => {
+  const P = MOVEIS.poltrona;
+  const L = MOVEIS.luminaria;
+  return encostar(
+    ctx,
+    (q, u) => [{ q, tipo: "poltrona", u, v: 0.05, du: P.l, dv: P.p, altura: P.a, naParede: true, usos: [[u, P.p + 0.05, P.l, 0.4]] }],
+    P.l,
+    (q, u) => [
+      u + P.l + 0.05 + L.l <= q.len
+        ? { q, tipo: "luminaria", u: u + P.l + 0.05, v: 0.05, du: L.l, dv: L.p, altura: L.a }
+        : { q, tipo: "luminaria", u: u - L.l - 0.05, v: 0.05, du: L.l, dv: L.p, altura: L.a },
+    ],
+  );
+};
+
+const umaPlanta: Reforco = (ctx) => {
+  const n = ctx.moveis.length;
+  plantas(ctx, 1);
+  return ctx.moveis.length > n;
+};
+
+/** Quadro no centro de uma parede livre. */
+const umQuadro: Reforco = (ctx) => {
+  for (const lado of ladosPreferidos(ctx)) {
+    if (!ctx.paredes[lado]) continue;
+    const q = quadro(ctx.A, lado);
+    if (q.len < 1.2) continue;
+    for (const uc of [q.len / 2, q.len / 3, (2 * q.len) / 3]) if (quadroNaParede(ctx, q, uc, 0.9)) return true;
+  }
+  return false;
+};
+
+/** Tapete no meio do cômodo (se ainda não tem). */
+const umTapete: Reforco = (ctx) => {
+  if (ctx.moveis.some((m) => m.tipo === "tapete")) return false;
+  const q = quadro(ctx.A, "top");
+  const du = Math.min(2.0, q.len * 0.5);
+  const dv = Math.min(1.4, q.prof * 0.4);
+  return tapete(ctx, q, (q.len - du) / 2, (q.prof - dv) / 2, du, dv);
+};
+
+/** Mesa com cadeiras (cozinha grande, varanda), se ainda não tem mesa. */
+const umaMesa: Reforco = (ctx) => {
+  if (ctx.moveis.some((m) => m.tipo === "mesa" || m.tipo === "mesaRedonda" || m.tipo === "ilha")) return false;
+  if (ctx.room.w * ctx.room.h < 9) return false;
+  return jantar(ctx, ctx.A);
+};
+
+/** O que a vistoria tenta acrescentar em cada tipo de cômodo, na ordem de prioridade. */
+const REFORCOS: Partial<Record<RoomType, Reforco[]>> = {
+  sala: [cantoDeLeitura, pecaNaParede("estante", MOVEIS.estante, 0.5), pecaNaParede("aparador", MOVEIS.aparador), umTapete, umaPlanta, umQuadro, umaPlanta],
+  jantar: [pecaNaParede("aparador", MOVEIS.aparador), pecaNaParede("estante", MOVEIS.estante, 0.5), umaPlanta, umQuadro, umaPlanta],
+  cozinha: [umaMesa, pecaNaParede("armario", MOVEIS.armario, 0.5), umaPlanta, umQuadro],
+  quarto: [cantoDeLeitura, pecaNaParede("comoda", MOVEIS.comoda, 0.5), pecaNaParede("estante", MOVEIS.estante, 0.5), umTapete, umaPlanta, umQuadro],
+  suite: [cantoDeLeitura, pecaNaParede("comoda", MOVEIS.comoda, 0.5), pecaNaParede("estante", MOVEIS.estante, 0.5), umTapete, umaPlanta, umQuadro],
+  escritorio: [cantoDeLeitura, pecaNaParede("estante", MOVEIS.estante, 0.5), pecaNaParede("armario", MOVEIS.armario, 0.5), umTapete, umaPlanta, umQuadro],
+  closet: [pecaNaParede("comoda", MOVEIS.comoda, 0.5), pecaNaParede("puff", MOVEIS.puff, 0)],
+  lavanderia: [pecaNaParede("armario", MOVEIS.armario, 0.5), pecaNaParede("cesto", MOVEIS.cesto, 0), umaPlanta],
+  banheiro: [pecaNaParede("cesto", MOVEIS.cesto, 0), umaPlanta],
+  banheiro_suite: [pecaNaParede("cesto", MOVEIS.cesto, 0), umaPlanta],
+  lavabo: [umaPlanta, umQuadro],
+  varanda: [umaMesa, pecaNaParede("poltrona", MOVEIS.poltrona, 0.4), umaPlanta, pecaNaParede("espreguicadeira", MOVEIS.espreguicadeira, 0.3), umaPlanta],
+  area_gourmet: [umaMesa, umaPlanta, pecaNaParede("poltrona", MOVEIS.poltrona, 0.4), umaPlanta],
+};
+
+/**
+ * Garagem sem carro: tenta de novo encostando o carro até 40 cm das portas que abrem para dentro da casa
+ * (a folha não passa pela garagem). Porta que abre para dentro da garagem continua com a área inteira livre.
+ */
+function vistoriarGaragem(ctx: Ctx, brief: Brief | null): VistoriaComodo | null {
+  if (ctx.moveis.some((m) => m.tipo === "carro")) return null;
+  const n0 = ctx.moveis.length;
+  const portas = ctx.portas;
+  ctx.portas = ctx.portasCurtas;
+  garagem(ctx, brief);
+  ctx.portas = portas;
+  const acrescentados = ctx.moveis.slice(n0).map((m) => m.tipo);
+  return { comodo: ctx.room.id, nome: ctx.room.nome, tipo: ctx.room.tipo, antes: 0, depois: ocupacao(ctx), meta: 0, acrescentados };
+}
+
+/** Confere o cômodo e completa o que estiver vazio. Só usa `colocar`, então todas as regras continuam valendo. */
+function vistoriar(ctx: Ctx, brief: Brief | null): VistoriaComodo | null {
+  const tipo = ctx.room.tipo;
+  if (tipo === "garagem") return vistoriarGaragem(ctx, brief);
+  const meta = VISTORIA.meta[tipo];
+  if (meta === undefined) return null;
+  const antes = ocupacao(ctx);
+  const n0 = ctx.moveis.length;
+  const limite = () => ctx.moveis.length - n0 >= VISTORIA.maxPorComodo;
+  for (const reforco of REFORCOS[tipo] ?? []) {
+    if (ocupacao(ctx) >= meta || limite()) break;
+    reforco(ctx);
+  }
+  // um toque final de decoração em quem ficou sem nenhum
+  if (VISTORIA.decorar.includes(tipo) && !limite() && !ctx.moveis.some((m) => m.tipo === "quadro" || m.tipo === "planta")) {
+    if (!umQuadro(ctx)) umaPlanta(ctx);
+  }
+  return {
+    comodo: ctx.room.id,
+    nome: ctx.room.nome,
+    tipo,
+    antes,
+    depois: ocupacao(ctx),
+    meta,
+    acrescentados: ctx.moveis.slice(n0).map((m) => m.tipo),
+  };
+}
+
 // ───────────────────────── Entrada principal ─────────────────────────
 
 /**
  * Gera a mobília de todos os cômodos a partir da planta (fonte de verdade).
  * `variacao` sorteia outra combinação de modelos do catálogo para a mesma casa (as posições seguem as mesmas regras).
  */
-export function mobiliaAutomatica(plan: Plan, brief: Brief | null, opcoes: { variacao?: number } = {}): Movel3D[] {
+export function mobiliaAutomatica(plan: Plan, brief: Brief | null, opcoes: { variacao?: number; vistoria?: boolean } = {}): Movel3D[] {
+  return mobiliarComVistoria(plan, brief, opcoes).moveis;
+}
+
+/**
+ * Mobília + relatório da vistoria (o que estava vazio e o que foi acrescentado).
+ * A vistoria só depende da geometria, então "outra combinação" troca os modelos mas não as posições.
+ */
+export function mobiliarComVistoria(
+  plan: Plan,
+  brief: Brief | null,
+  opcoes: { variacao?: number; vistoria?: boolean } = {},
+): { moveis: Movel3D[]; vistoria: VistoriaComodo[] } {
   const out: Movel3D[] = [];
+  const relatorio: VistoriaComodo[] = [];
   // a mesma planta sempre recebe os mesmos modelos; outra variação, outra combinação
   const semente = `${plan.rooms.map((r) => `${r.id}:${r.w.toFixed(1)}x${r.h.toFixed(1)}`).join(",")}#${opcoes.variacao ?? 0}`;
   for (const room of plan.rooms) {
@@ -1215,9 +1398,13 @@ export function mobiliaAutomatica(plan: Plan, brief: Brief | null, opcoes: { var
         varanda(ctx);
         break;
     }
+    if (opcoes.vistoria !== false) {
+      const v = vistoriar(ctx, brief);
+      if (v) relatorio.push(v);
+    }
     out.push(...ctx.moveis);
   }
-  return out;
+  return { moveis: out, vistoria: relatorio };
 }
 
 /** Móveis que bloqueiam a passagem no modo andar (os de chão; TV, espelho e armário superior não). */
@@ -1228,5 +1415,5 @@ export function obstaculosDosMoveis(moveis: Movel3D[]): Rect[] {
 /** Usado pelos testes: áreas de porta e vão livre de um cômodo. */
 export function regrasDoComodo(room: PlacedRoom, plan: Plan) {
   const c = contexto(room, plan);
-  return { vao: paraRect(c.A), portas: c.portas.map(paraRect), janelas: c.janelas };
+  return { vao: paraRect(c.A), portas: c.portas.map(paraRect), portasCurtas: c.portasCurtas.map(paraRect), janelas: c.janelas };
 }
