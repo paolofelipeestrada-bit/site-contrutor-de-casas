@@ -120,6 +120,8 @@ export interface LayoutStrategy {
   variant: 0 | 1 | 2;
   /** largura usada da área edificável (m) */
   width: number;
+  /** banheiros longe uns dos outros (padrão) ou em "faixa hidráulica", parede com parede */
+  banhos?: "separados" | "juntos";
 }
 
 export interface Plan {

@@ -47,6 +47,7 @@ interface Unit {
 }
 
 const RANK: Partial<Record<RoomType, number>> = { escritorio: 0, quarto: 2, suite: 3 };
+const MOLHADOS = new Set<RoomType>(["banheiro", "banheiro_suite", "lavabo"]);
 const isSmall = (r: RoomSpec) => r.tipo === "banheiro" || r.tipo === "lavabo" || (r.tipo === "closet" && !r.attachTo);
 
 function privateRooms(rooms: RoomSpec[]) {
@@ -64,35 +65,46 @@ function privateRooms(rooms: RoomSpec[]) {
 
 /**
  * Empilha a zona íntima em uma coluna (da frente para os fundos), com o corredor de um lado.
- * Áreas molhadas viram uma "faixa hidráulica": banho da suíte + banho social lado a lado,
- * parede com parede (economiza tubulação), com o banho social do lado do corredor.
+ * Banheiros ficam longe uns dos outros: o banho da suíte fica só com a suíte (e o closet), lá no fundo;
+ * o banho social fica no começo do corredor, perto da área social; um segundo banho social vai para o meio.
  */
-function column(units: Unit[], smalls: RoomSpec[], corridorSide: "left" | "right"): SNode | null {
+function column(units: Unit[], smalls: RoomSpec[], corridorSide: "left" | "right", juntos = false): SNode | null {
   const items: SNode[] = [];
-  const pending = [...smalls];
   const row = (wet: RoomSpec[]) => {
     // quem precisa do corredor fica do lado dele
     const sorted = [...wet].sort((a, b) => Number(!!b.attachTo) - Number(!!a.attachTo));
     return split("x", corridorSide === "right" ? sorted.map((r) => leaf(r.id)) : sorted.reverse().map((r) => leaf(r.id)));
   };
-  for (const u of [...units].sort((a, b) => a.rank - b.rank)) {
-    if (u.extras.length > 0) {
-      const wet = [...u.extras];
-      if (pending.length) wet.push(pending.shift()!);
-      items.push(row(wet)!);
+  if (juntos) {
+    // alternativa "faixa hidráulica": banho da suíte + banho social parede com parede (economiza tubulação)
+    const pending = [...smalls];
+    for (const u of [...units].sort((a, b) => a.rank - b.rank)) {
+      if (u.extras.length > 0) items.push(row(pending.length ? [...u.extras, pending.shift()!] : u.extras)!);
+      items.push(leaf(u.main.id));
     }
+    while (pending.length) {
+      const pair = pending.splice(0, 2);
+      items.unshift(pair.length === 2 ? split("x", pair.map((r) => leaf(r.id)))! : leaf(pair[0].id));
+    }
+    return split("y", items);
+  }
+  for (const u of [...units].sort((a, b) => a.rank - b.rank)) {
+    if (u.extras.length > 0) items.push(row(u.extras)!);
     items.push(leaf(u.main.id));
   }
-  // banhos que sobraram: em dupla, ou sozinhos, logo no início do corredor
-  while (pending.length) {
-    const pair = pending.splice(0, 2);
-    items.unshift(pair.length === 2 ? split("x", pair.map((r) => leaf(r.id)))! : leaf(pair[0].id));
-  }
+  // banhos sociais: o 1º no início do corredor; os outros entre quartos, sem encostar em outro banho
+  smalls.forEach((b, i) => {
+    if (i === 0) return items.unshift(leaf(b.id));
+    const molhado = (n: SNode | undefined) => !!n && leaves(n).some((id) => units.some((u) => u.extras.some((e) => e.id === id)) || smalls.some((x) => x.id === id));
+    let pos = Math.max(1, Math.round(items.length / 2));
+    while (pos < items.length && (molhado(items[pos - 1]) || molhado(items[pos]))) pos++;
+    items.splice(pos, 0, leaf(b.id));
+  });
   return split("y", items);
 }
 
-/** Divide as unidades em colunas equilibrando área; banhos sociais vão para a coluna que tem suíte. */
-function partition(units: Unit[], smalls: RoomSpec[], cols: number): { units: Unit[]; smalls: RoomSpec[] }[] {
+/** Divide as unidades em colunas equilibrando área; banhos sociais vão para a coluna sem suíte (longe do banho dela). */
+function partition(units: Unit[], smalls: RoomSpec[], cols: number, juntos = false): { units: Unit[]; smalls: RoomSpec[] }[] {
   const out = Array.from({ length: cols }, () => ({ units: [] as Unit[], smalls: [] as RoomSpec[], load: 0 }));
   for (const u of [...units].sort((a, b) => b.area - a.area)) {
     const c = out.reduce((m, x) => (x.load < m.load ? x : m), out[0]);
@@ -100,8 +112,9 @@ function partition(units: Unit[], smalls: RoomSpec[], cols: number): { units: Un
     c.load += u.area;
   }
   for (const sm of smalls) {
-    const withSuite = out.find((c) => c.units.some((u) => u.extras.length > 0) && c.smalls.length === 0);
-    const c = withSuite ?? out.reduce((m, x) => (x.load < m.load ? x : m), out[0]);
+    const temSuite = (c: (typeof out)[number]) => c.units.some((u) => u.extras.length > 0);
+    const preferida = out.find((c) => c.units.length > 0 && temSuite(c) === juntos && c.smalls.length === 0);
+    const c = preferida ?? out.reduce((m, x) => (x.load + x.smalls.length * 20 < m.load + m.smalls.length * 20 ? x : m), out[0]);
     c.smalls.push(sm);
     c.load += sm.area;
   }
@@ -130,14 +143,15 @@ function buildTree(rooms: RoomSpec[], brief: Brief, s: LayoutStrategy, corridorI
   const backBand = (extra: SNode | null = null) => split("x", order([extra, ...backOutdoor.map((r) => leaf(r.id))]));
   const service = split("x", order([lav && leaf(lav.id), lavabo && leaf(lavabo.id)]));
 
+  const juntos = s.banhos === "juntos";
   const privateBlock = (width: number, corridorFirst: boolean) => {
     if (width >= 6.2 && units.length >= 2) {
-      const [a, b] = partition(units, privSmalls, 2);
+      const [a, b] = partition(units, privSmalls, 2, juntos);
       const [l, r] = s.mirror ? [b, a] : [a, b];
-      return split("x", [column(l.units, l.smalls, "right"), corridor, column(r.units, r.smalls, "left")]);
+      return split("x", [column(l.units, l.smalls, "right", juntos), corridor, column(r.units, r.smalls, "left", juntos)]);
     }
     const side = corridorFirst ? "left" : "right";
-    const col = column(units, privSmalls, side);
+    const col = column(units, privSmalls, side, juntos);
     return split("x", corridorFirst ? [corridor, col] : [col, corridor]);
   };
 
@@ -169,7 +183,7 @@ function buildTree(rooms: RoomSpec[], brief: Brief, s: LayoutStrategy, corridorI
   // lateral: coluna social (garagem na frente) ao lado da coluna íntima, com o corredor entre as duas
   const kitchenRow = s.variant === 0 ? split("x", order([leaf(cozinha.id), service])) : split("y", [leaf(cozinha.id), service]);
   const socialCol = split("y", [G && leaf(G.id), ...varandaFrente.map((v) => leaf(v.id)), leaf(sala.id), jantar && leaf(jantar.id), kitchenRow]);
-  const roomsCol = column(units, privSmalls, s.mirror ? "right" : "left");
+  const roomsCol = column(units, privSmalls, s.mirror ? "right" : "left", juntos);
   const privateCol = s.mirror ? split("x", [roomsCol, corridor]) : split("x", [corridor, roomsCol]);
   const main = s.mirror ? split("x", [privateCol, socialCol]) : split("x", [socialCol, privateCol]);
   return split("y", [main, backBand()])!;
@@ -355,6 +369,8 @@ export function openingsFor(rooms: PlacedRoom[], brief: Brief, issues: string[])
     }
   }
 
+  repararAcessos(rooms, ops, connect, issues);
+
   // Janelas nas paredes externas
   for (const r of rooms) {
     const w = WINDOW[r.tipo];
@@ -369,6 +385,73 @@ export function openingsFor(rooms: PlacedRoom[], brief: Brief, issues: string[])
     ops.push({ kind: "window", ...cut(best.seg, Math.min(w * big, best.seg.len - 0.6), hasEntry ? 0.85 : 0.5), rooms: [r.id] });
   }
   return ops;
+}
+
+/** Por onde se passa para chegar a um cômodo sem acesso (nunca por dentro de banheiro; quarto só em último caso). */
+const PASSAGEM: RoomType[][] = [
+  ["circulacao", "sala", "jantar"],
+  ["cozinha", "varanda", "area_gourmet"],
+  ["lavanderia", "garagem", "escritorio"],
+  ["quarto", "suite"],
+];
+
+/** Cômodos que se alcançam a pé a partir da rua, seguindo portas e passagens. */
+export function comodosAlcancaveis(rooms: PlacedRoom[], ops: Opening[]): Set<string> {
+  const viz = new Map<string, string[]>();
+  const ligar = (a: string, b: string) => viz.set(a, [...(viz.get(a) ?? []), b]);
+  const RUA = "__rua";
+  for (const o of ops) {
+    if (o.kind === "window") continue;
+    if (o.rooms.length === 1) {
+      ligar(RUA, o.rooms[0]);
+      ligar(o.rooms[0], RUA);
+    } else {
+      ligar(o.rooms[0], o.rooms[1]);
+      ligar(o.rooms[1], o.rooms[0]);
+    }
+  }
+  // varanda e área gourmet com lado aberto: entra-se pelo quintal
+  for (const r of rooms) if (r.zone === "outdoor" && r.exterior.length) ligar(RUA, r.id);
+  const vistos = new Set([RUA]);
+  const fila = [RUA];
+  while (fila.length) for (const n of viz.get(fila.shift()!) ?? []) if (!vistos.has(n)) (vistos.add(n), fila.push(n));
+  vistos.delete(RUA);
+  return vistos;
+}
+
+/**
+ * Rede de segurança do acesso: todo cômodo precisa ser alcançável a partir da entrada.
+ * Quem ficou isolado ganha uma porta para um vizinho já alcançável (corredor/sala primeiro).
+ */
+function repararAcessos(rooms: PlacedRoom[], ops: Opening[], connect: (a: PlacedRoom, b: PlacedRoom, seg: Segment) => void, issues: string[]) {
+  // o aviso "sem porta" da 1ª passada vale só para quem continuar isolado depois do reparo
+  const semPorta = (r: PlacedRoom) => `${r.nome} ficou sem porta para um ambiente de acesso.`;
+  const avisar = (isolados: PlacedRoom[]) => {
+    for (let i = issues.length - 1; i >= 0; i--) if (issues[i].endsWith("ficou sem porta para um ambiente de acesso.")) issues.splice(i, 1);
+    for (const r of isolados) issues.push(semPorta(r));
+  };
+  for (let rodada = 0; rodada <= rooms.length; rodada++) {
+    const ok = comodosAlcancaveis(rooms, ops);
+    const isolados = rooms.filter((r) => !ok.has(r.id));
+    if (!isolados.length) return avisar([]);
+    let ligou = false;
+    for (const r of isolados) {
+      for (const tipos of PASSAGEM) {
+        const viz = rooms
+          .filter((o) => ok.has(o.id) && tipos.includes(o.tipo))
+          .map((o) => ({ o, seg: sharedEdge(r, o) }))
+          .filter((x) => x.seg && x.seg.len >= 0.75)
+          .sort((a, b) => b.seg!.len - a.seg!.len)[0];
+        if (viz) {
+          connect(r, viz.o, viz.seg!);
+          ligou = true;
+          break;
+        }
+      }
+      if (ligou) break; // recalcula quem ficou alcançável antes de seguir
+    }
+    if (!ligou) return avisar(isolados);
+  }
 }
 
 // ───────────────────────── Pontuação ─────────────────────────
@@ -394,7 +477,8 @@ export function scorePlan(plan: Omit<Plan, "score">, brief: Brief, Dmax: number,
     pen(Math.min(10, (Math.abs(area - r.targetArea) / r.targetArea) * devWeight), `${r.nome}: área diferente do alvo`);
     if (short < info.minWidth - 0.02) pen((info.minWidth - short) * 25, `${r.nome}: abaixo da largura mínima`);
     const ar = long / Math.max(short, 0.1);
-    const arMax = r.zone === "outdoor" ? 5.5 : r.tipo === "sala" ? 2.4 : 2.1;
+    // banheiro "linear" (vaso, pia e box em fila, ~1,3 × 3 m) é comum e funciona bem
+    const arMax = r.zone === "outdoor" ? 5.5 : r.tipo === "sala" ? 2.4 : MOLHADOS.has(r.tipo) ? 3.0 : 2.1;
     if (ar > arMax) pen(Math.min(15, (ar - arMax) * 7), `${r.nome}: proporção alongada`);
     if (r.exterior.length === 0) {
       if (r.tipo === "quarto" || r.tipo === "suite" || r.tipo === "sala") pen(15, `${r.nome} sem janela para fora`);
@@ -413,6 +497,14 @@ export function scorePlan(plan: Omit<Plan, "score">, brief: Brief, Dmax: number,
   if (plan.footprint.h > Dmax + EPS) pen(40, "não cabe no terreno");
   pen(plan.issues.filter((i) => i.includes("sem porta")).length * 20, "cômodos sem acesso");
 
+  // banheiros longe uns dos outros
+  const banhos = rooms.filter((r) => MOLHADOS.has(r.tipo));
+  for (let i = 0; i < banhos.length; i++)
+    for (let j = i + 1; j < banhos.length; j++) {
+      const [a, b] = [banhos[i], banhos[j]];
+      if (sharedEdge(a, b)) pen(15, `${a.nome} colado em ${b.nome}`);
+      else if (Math.hypot(a.x + a.w / 2 - b.x - b.w / 2, a.y + a.h / 2 - b.y - b.h / 2) < 3) pen(2, `${a.nome} muito perto de ${b.nome}`);
+    }
   const by = (t: RoomType) => rooms.filter((r) => r.tipo === t);
   const sala = by("sala")[0];
   const cozinha = by("cozinha")[0];
@@ -582,7 +674,7 @@ export function generatePlans(program: Program, brief: Brief, opts: LayoutOption
     for (const kind of ["faixas", "lateral"] as const) {
       for (const mirror of [false, true]) {
         for (const variant of [0, 1, 2] as const) {
-          plans.push(layoutWith(program, brief, { kind, mirror, variant, width }, opts));
+          for (const banhos of ["separados", "juntos"] as const) plans.push(layoutWith(program, brief, { kind, mirror, variant, width, banhos }, opts));
         }
       }
     }

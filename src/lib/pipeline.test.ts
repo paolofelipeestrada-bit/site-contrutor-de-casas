@@ -172,7 +172,8 @@ describe("robustez em vários briefings", () => {
       const sum = best.rooms.reduce((s, r) => s + r.w * r.h, 0);
       expect(sum).toBeCloseTo(best.footprint.w * best.footprint.h, 2);
       expect(best.issues.filter((i) => i.includes("sem porta"))).toEqual([]);
-      expect(best.score).toBeGreaterThan(30);
+      // casas com muitos banheiros pagam um pouco na nota para mantê-los afastados uns dos outros
+      expect(best.score).toBeGreaterThan(25);
     });
   }
 });

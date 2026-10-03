@@ -1,5 +1,6 @@
 import { escolherModelo, type TipoMovel } from "./catalogo";
-import { CASA3D } from "./model";
+import { comodosSemAcesso } from "./acesso";
+import { CASA3D, planTo3D } from "./model";
 import type { Brief, Opening, PlacedRoom, Plan, Rect, RoomType, Side, Style } from "../types";
 
 /**
@@ -1351,7 +1352,7 @@ export function mobiliarComVistoria(
   plan: Plan,
   brief: Brief | null,
   opcoes: { variacao?: number; vistoria?: boolean } = {},
-): { moveis: Movel3D[]; vistoria: VistoriaComodo[] } {
+): { moveis: Movel3D[]; vistoria: VistoriaComodo[]; liberados: TipoMovel[] } {
   const out: Movel3D[] = [];
   const relatorio: VistoriaComodo[] = [];
   // a mesma planta sempre recebe os mesmos modelos; outra variação, outra combinação
@@ -1404,7 +1405,54 @@ export function mobiliarComVistoria(
     }
     out.push(...ctx.moveis);
   }
-  return { moveis: out, vistoria: relatorio };
+  const liberados = opcoes.vistoria === false ? [] : liberarPassagem(plan, brief, out);
+  return { moveis: out, vistoria: relatorio, liberados };
+}
+
+/** Peças que saem primeiro quando fecham a passagem (as do fim da lista só em último caso). */
+const ORDEM_DE_TIRAR: TipoMovel[] = [
+  "planta", "luminaria", "puff", "cesto", "poltrona", "aparador", "estante", "comoda", "mesaCentro",
+  "cadeira", "banqueta", "mesaRedonda", "mesa", "espreguicadeira", "sofaExterno", "cadeiraEscritorio", "escrivaninha",
+  "criadoMudo", "ilha", "armario", "rack", "sofa", "guardaRoupa", "maquina", "tanque",
+];
+
+/**
+ * Caminho livre: com os móveis, todo cômodo que se alcança a pé (sem móveis) continua alcançável.
+ * Se algum ficou fechado, tira as peças que estão no caminho (as menos importantes primeiro) e devolve
+ * as que não eram necessárias. Cama, vaso, pia, fogão, bancada e carro nunca saem.
+ */
+function liberarPassagem(plan: Plan, brief: Brief | null, moveis: Movel3D[]): TipoMovel[] {
+  const model = planTo3D(plan, brief, "laje");
+  const semMoveis = new Set(comodosSemAcesso(model));
+  const fechados = (lista: Movel3D[]) => comodosSemAcesso(model, obstaculosDosMoveis(lista)).filter((id) => !semMoveis.has(id));
+  const tirados: Movel3D[] = [];
+  for (let guarda = 0; guarda < 10; guarda++) {
+    const atuais = moveis.filter((m) => !tirados.includes(m));
+    const bloqueados = fechados(atuais);
+    if (!bloqueados.length) break;
+    const alvo = bloqueados[0];
+    // o que pode estar no caminho: o próprio cômodo e os que têm porta para ele
+    const perto = new Set([alvo]);
+    for (const d of model.portas) if (d.comodos.includes(alvo)) d.comodos.forEach((c) => perto.add(c));
+    const candidatos = atuais
+      .filter((m) => perto.has(m.comodo) && ORDEM_DE_TIRAR.includes(m.tipo))
+      .sort((a, b) => ORDEM_DE_TIRAR.indexOf(a.tipo) - ORDEM_DE_TIRAR.indexOf(b.tipo));
+    const agora: Movel3D[] = [];
+    const livre = () => !fechados(atuais.filter((m) => !agora.includes(m))).includes(alvo);
+    for (const c of candidatos) {
+      agora.push(c);
+      if (livre()) break;
+    }
+    if (!livre()) break; // nem tirando tudo o que dá: deixa como está
+    // devolve o que não precisava sair
+    for (const c of [...agora].reverse()) {
+      agora.splice(agora.indexOf(c), 1);
+      if (!livre()) agora.push(c);
+    }
+    tirados.push(...agora);
+  }
+  for (const t of tirados) moveis.splice(moveis.indexOf(t), 1);
+  return tirados.map((m) => m.tipo);
 }
 
 /** Móveis que bloqueiam a passagem no modo andar (os de chão; TV, espelho e armário superior não). */
